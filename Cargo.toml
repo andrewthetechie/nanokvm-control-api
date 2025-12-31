@@ -1,0 +1,8 @@
+[package]
+name = "nanokvm-control-api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pcf857x = "0.5.0"
+tiny_http = "0.12.0"
