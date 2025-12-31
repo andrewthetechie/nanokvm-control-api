@@ -2,12 +2,13 @@ use tiny_http::{Server, Response, StatusCode, Method, Header};
 use std::error::Error;
 use std::env;
 mod config;
+mod control;
+use crate::control::{handle_input, handle_power};
 use crate::config::{read_config, Config};
 
-const VALID_IDS: [u8; 4] = [1, 2, 3, 4];
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let config = read_config();
+    let config: Config = read_config();
     println!("Loaded config: {:?}", config);
 
     println!("Initializing system state...");
@@ -77,35 +78,4 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
-}
-
-fn parse_id(id_str: &str) -> Result<u8, Response<std::io::Cursor<Vec<u8>>>> {
-    if let Ok(id) = id_str.parse::<u8>() {
-        if VALID_IDS.contains(&id) {
-            return Ok(id);
-        }
-    }
-
-    Err(Response::from_string("ID must be integer 1-4")
-        .with_status_code(StatusCode(400)))
-}
-
-fn handle_input(id_str: &str) -> Response<std::io::Cursor<Vec<u8>>> {
-    match parse_id(id_str) {
-        Ok(id) => {
-            println!("Setting input to {}", id);
-            Response::from_string(format!("Input {} selected", id))
-        }
-        Err(resp) => resp,
-    }
-}
-
-fn handle_power(kind: &str, id_str: &str) -> Response<std::io::Cursor<Vec<u8>>> {
-    match parse_id(id_str) {
-        Ok(id) => {
-            println!("Power {} action triggered for {}", kind, id);
-            Response::from_string(format!("Power {} action triggered for {}", kind, id))
-        }
-        Err(resp) => resp,
-    }
 }
