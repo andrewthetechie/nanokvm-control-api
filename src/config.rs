@@ -29,7 +29,7 @@ pub fn read_config() -> Config {
         power_default_state: get_env_u8("POWER_DEFAULT_STATE", 0),
         state_storage_path: get_env_string("STATE_STORAGE_PATH", "/etc/control_apl/state.json"),
         log_level: get_env_string("LOG_LEVEL", "info"),
-        log_file: get_env_string("LOG_FILE", "/var/log/control_api.log"),
+        log_file: get_env_string("LOG_FILE", "stdout"),
         i2c_bus: get_env_string("I2C_BUS", "/dev/i2c-1"),
         i2c_address: get_env_string("I2C_ADDRESS", "0x20"),
     }
