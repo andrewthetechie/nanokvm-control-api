@@ -14,11 +14,6 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install cross
-        uses: cross-rs/cross-action@v1
-        with:
-          version: latest
-
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
@@ -32,8 +27,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Build with cross
-        run: cross build --target riscv64gc-unknown-linux-musl --release
+      - name: Build binary
+        uses: houseabsolute/actions-rust-cross@v1
+        with:
+          command: build
+          target: riscv64gc-unknown-linux-musl
+          args: "--locked --release"
+          strip: true
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
