@@ -6,13 +6,20 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Release - ${{ matrix.platform.os-name }}
+    strategy:
+      matrix:
+        platform:
+          - os-name: Linux-riscv64-gnu
+            runs-on: ubuntu-24.04
+            target: riscv64gc-unknown-linux-gnu
+          - os-name: Linux-riscv64-musl
+            runs-on: ubuntu-24.04
+            target: riscv64gc-unknown-linux-musl
+    runs-on: ${{ matrix.platform.runs-on }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -31,7 +38,7 @@ jobs:
         uses: houseabsolute/actions-rust-cross@v1
         with:
           command: build
-          target: riscv64gc-unknown-linux-musl
+          target: ${{ matrix.platform.target }}
           args: "--locked --release"
           strip: true
 
