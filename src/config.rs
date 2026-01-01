@@ -1,5 +1,6 @@
 use std::env;
 
+#[allow(dead_code)] // TODO: Remove this once we're using all of the config
 #[derive(Debug)]
 pub struct Config {
     pub server_port: u16,
@@ -25,7 +26,7 @@ pub fn read_config() -> Config {
         soft_power_long_press_ms: get_env_float("SOFT_POWER_LONG_PRESS_MS", 90.0),
         hard_power_delay_ms: get_env_float("HARD_POWER_DELAY_MS", 30.0),
         power_default_state: get_env_u8("POWER_DEFAULT_STATE", 0),
-        state_storage_path: get_env_string("STATE_STORAGE_PATH", "/etc/control_apl/state.json"),
+        state_storage_path: get_env_string("STATE_STORAGE_PATH", "./state.json"),
         log_level: get_env_string("LOG_LEVEL", "info"),
         log_file: get_env_string("LOG_FILE", "stdout"),
         i2c_bus: get_env_string("I2C_BUS", "/dev/i2c-1"),

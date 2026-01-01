@@ -7,7 +7,22 @@ use tiny_http::{Header, Method, Response, Server, StatusCode};
 mod config;
 mod control;
 use crate::config::{Config, read_config};
-use crate::control::{handle_input, handle_power};
+use crate::control::{StateManager, handle_input, handle_power};
+use std::sync::Arc;
+
+// Helper to extract action from query parameters
+fn extract_action(query_part: Option<&str>) -> Option<&str> {
+    query_part.and_then(|q| {
+        q.split('&').find_map(|param| {
+            let mut kv = param.split('=');
+            if kv.next() == Some("action") {
+                kv.next()
+            } else {
+                None
+            }
+        })
+    })
+}
 
 fn init_logger(config: &Config) -> Result<(), Box<dyn Error>> {
     let log_level = match config.log_level.to_lowercase().as_str() {
@@ -48,7 +63,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     log::info!("Loaded config: {:?}", config);
 
     log::info!("Initializing system state...");
-    let _ = handle_input("1");
+    let state_manager = Arc::new(StateManager::new(config.state_storage_path.clone())?);
+    log::info!("State manager initialized");
 
     let server_url = format!("{}:{}", config.server_host, config.server_port);
     let server = Server::http(server_url.clone()).unwrap();
@@ -57,10 +73,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     for request in server.incoming_requests() {
         let method = request.method().clone();
         let url = request.url().to_string();
+        let state_manager = Arc::clone(&state_manager);
 
         log::debug!("received request -> method: {:?}, url: {:?}", method, url);
 
-        let parts = url.trim_start_matches('/').split('/').collect::<Vec<_>>();
+        // Split URL into path and query
+        let (path_part, query_part) = match url.split_once('?') {
+            Some((path, query)) => (path, Some(query)),
+            None => (&url[..], None),
+        };
+
+        let parts = path_part
+            .trim_start_matches('/')
+            .split('/')
+            .collect::<Vec<_>>();
 
         let response = match (method, parts.as_slice()) {
             // GET /
@@ -90,16 +116,26 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
 
             // POST/PUT /input/{id}
-            (Method::Post, ["input", id]) | (Method::Put, ["input", id]) => handle_input(id),
+            (Method::Post, ["input", id]) | (Method::Put, ["input", id]) => {
+                handle_input(&state_manager, id)
+            }
 
             // POST/PUT /power/soft/{id}
             (Method::Post, ["power", "soft", id]) | (Method::Put, ["power", "soft", id]) => {
-                handle_power("soft", id)
+                match extract_action(query_part) {
+                    Some(action) => handle_power(&state_manager, "soft", id, action),
+                    None => Response::from_string("Missing required 'action' query parameter")
+                        .with_status_code(StatusCode(400)),
+                }
             }
 
             // POST/PUT /power/hard/{id}
             (Method::Post, ["power", "hard", id]) | (Method::Put, ["power", "hard", id]) => {
-                handle_power("hard", id)
+                match extract_action(query_part) {
+                    Some(action) => handle_power(&state_manager, "hard", id, action),
+                    None => Response::from_string("Missing required 'action' query parameter")
+                        .with_status_code(StatusCode(400)),
+                }
             }
 
             _ => Response::from_string("Not Found").with_status_code(StatusCode(404)),
