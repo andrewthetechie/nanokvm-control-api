@@ -3,11 +3,10 @@ use tiny_http::{Response, StatusCode};
 pub const VALID_IDS: [u8; 4] = [1, 2, 3, 4];
 
 pub fn parse_id(id_str: &str) -> Result<u8, Response<std::io::Cursor<Vec<u8>>>> {
-    if let Ok(id) = id_str.parse::<u8>() {
-        if VALID_IDS.contains(&id) {
+    if let Ok(id) = id_str.parse::<u8>()
+        && VALID_IDS.contains(&id) {
             return Ok(id);
         }
-    }
 
     Err(Response::from_string("ID must be integer 1-4").with_status_code(StatusCode(400)))
 }
