@@ -21,6 +21,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
@@ -34,17 +37,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      - name: Install cross
+        run: cargo install cross --locked
+
       - name: Build binary
-        uses: houseabsolute/actions-rust-cross@v1
-        with:
-          command: build
-          target: ${{ matrix.platform.target }}
-          args: "--locked --release"
-          strip: true
+        run: cross build --target ${{ matrix.platform.target }} --release --locked
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nanokvm-control-api-riscv64
-          path: target/riscv64gc-unknown-linux-musl/release/nanokvm-control-api
+          name: nanokvm-control-api-${{ matrix.platform.target }}
+          path: target/${{ matrix.platform.target }}/release/nanokvm-control-api
           retention-days: 7
