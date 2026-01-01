@@ -1,14 +1,13 @@
-use tiny_http::{Server, Response, StatusCode, Method, Header};
-use std::error::Error;
-use std::env;
-use std::path::Path;
+use flexi_logger::{Duplicate, Logger};
 use log::LevelFilter;
-use flexi_logger::{Logger, Duplicate};
+use std::env;
+use std::error::Error;
+use std::path::Path;
+use tiny_http::{Header, Method, Response, Server, StatusCode};
 mod config;
 mod control;
+use crate::config::{Config, read_config};
 use crate::control::{handle_input, handle_power};
-use crate::config::{read_config, Config};
-
 
 fn init_logger(config: &Config) -> Result<(), Box<dyn Error>> {
     let log_level = match config.log_level.to_lowercase().as_str() {
@@ -23,20 +22,19 @@ fn init_logger(config: &Config) -> Result<(), Box<dyn Error>> {
     let mut logger = Logger::try_with_str(format!("{}", log_level))?;
 
     if config.log_file.to_lowercase() == "stdout" {
-        logger = logger
-            .log_to_stdout()
-            .duplicate_to_stderr(Duplicate::Error);
+        logger = logger.log_to_stdout().duplicate_to_stderr(Duplicate::Error);
     } else {
         let log_path = Path::new(&config.log_file);
         let directory = log_path.parent().unwrap_or_else(|| Path::new("."));
-        let filename = log_path.file_name()
+        let filename = log_path
+            .file_name()
             .and_then(|s| s.to_str())
             .unwrap_or("log");
-        
+
         logger = logger.log_to_file(
             flexi_logger::FileSpec::default()
                 .directory(directory)
-                .basename(filename)
+                .basename(filename),
         );
     }
 
@@ -60,10 +58,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let method = request.method().clone();
         let url = request.url().to_string();
 
-        log::debug!(
-            "received request -> method: {:?}, url: {:?}",
-            method, url
-        );
+        log::debug!("received request -> method: {:?}, url: {:?}", method, url);
 
         let parts = url.trim_start_matches('/').split('/').collect::<Vec<_>>();
 
@@ -90,11 +85,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }"#;
 
                 let mut resp = Response::from_string(json);
-                resp.add_header(
-                    "Content-Type: application/json"
-                        .parse::<Header>()
-                        .unwrap()
-                );
+                resp.add_header("Content-Type: application/json".parse::<Header>().unwrap());
                 resp
             }
 
@@ -102,12 +93,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             (Method::Post, ["input", id]) | (Method::Put, ["input", id]) => handle_input(id),
 
             // POST/PUT /power/soft/{id}
-            (Method::Post, ["power", "soft", id])
-            | (Method::Put, ["power", "soft", id]) => handle_power("soft", id),
+            (Method::Post, ["power", "soft", id]) | (Method::Put, ["power", "soft", id]) => {
+                handle_power("soft", id)
+            }
 
             // POST/PUT /power/hard/{id}
-            (Method::Post, ["power", "hard", id])
-            | (Method::Put, ["power", "hard", id]) => handle_power("hard", id),
+            (Method::Post, ["power", "hard", id]) | (Method::Put, ["power", "hard", id]) => {
+                handle_power("hard", id)
+            }
 
             _ => Response::from_string("Not Found").with_status_code(StatusCode(404)),
         };

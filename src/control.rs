@@ -9,8 +9,7 @@ pub fn parse_id(id_str: &str) -> Result<u8, Response<std::io::Cursor<Vec<u8>>>> 
         }
     }
 
-    Err(Response::from_string("ID must be integer 1-4")
-        .with_status_code(StatusCode(400)))
+    Err(Response::from_string("ID must be integer 1-4").with_status_code(StatusCode(400)))
 }
 
 pub fn handle_input(id_str: &str) -> Response<std::io::Cursor<Vec<u8>>> {

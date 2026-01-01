@@ -1,6 +1,5 @@
 use std::env;
 
-
 #[derive(Debug)]
 pub struct Config {
     pub server_port: u16,
@@ -14,9 +13,8 @@ pub struct Config {
     pub log_level: String,
     pub log_file: String,
     pub i2c_bus: String,
-    pub i2c_address: String
+    pub i2c_address: String,
 }
-
 
 pub fn read_config() -> Config {
     Config {
@@ -36,15 +34,24 @@ pub fn read_config() -> Config {
 }
 
 fn get_env_float(key: &str, default: f32) -> f32 {
-    env::var(key).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
+    env::var(key)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
 }
 
 fn get_env_u8(key: &str, default: u8) -> u8 {
-    env::var(key).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
+    env::var(key)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
 }
 
 fn get_env_u16(key: &str, default: u16) -> u16 {
-    env::var(key).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
+    env::var(key)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
 }
 
 fn get_env_string(key: &str, default: &str) -> String {
