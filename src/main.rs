@@ -7,7 +7,7 @@ use tiny_http::{Header, Method, Response, Server, StatusCode};
 mod config;
 mod control;
 use crate::config::{Config, read_config};
-use crate::control::{StateManager, handle_input, handle_power};
+use crate::control::{StateManager, StatusResponse, handle_input, handle_power};
 use std::sync::Arc;
 
 // Helper to extract action from query parameters
@@ -66,6 +66,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     let state_manager = Arc::new(StateManager::new(config.state_storage_path.clone())?);
     log::info!("State manager initialized");
 
+    log::info!("Clearing and regenerating state...");
+    state_manager.clear_and_regenerate_state()?;
+    log::info!("State cleared and regenerated");
+
+    log::info!("Setting initial input to 1");
+    let _ = handle_input(&state_manager, "1");
+
     let server_url = format!("{}:{}", config.server_host, config.server_port);
     let server = Server::http(server_url.clone()).unwrap();
     log::info!("Control API running on {}", server_url);
@@ -100,19 +107,22 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             // GET /status
             (Method::Get, ["status"]) => {
-                let json = r#"{
-                    "current_input": 2,
-                    "power": {
-                        "1": "on",
-                        "2": "off",
-                        "3": "on",
-                        "4": "off"
+                let state = state_manager.get_state();
+                let status_response: StatusResponse = state.into();
+                match serde_json::to_string(&status_response) {
+                    Ok(json) => {
+                        let mut resp = Response::from_string(json);
+                        resp.add_header(
+                            "Content-Type: application/json".parse::<Header>().unwrap(),
+                        );
+                        resp
                     }
-                }"#;
-
-                let mut resp = Response::from_string(json);
-                resp.add_header("Content-Type: application/json".parse::<Header>().unwrap());
-                resp
+                    Err(e) => {
+                        log::error!("Failed to serialize status: {}", e);
+                        Response::from_string("Internal server error")
+                            .with_status_code(StatusCode(500))
+                    }
+                }
             }
 
             // POST/PUT /input/{id}

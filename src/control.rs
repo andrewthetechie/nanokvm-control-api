@@ -7,12 +7,44 @@ use tiny_http::{Response, StatusCode};
 
 pub const VALID_IDS: [u8; 4] = [1, 2, 3, 4];
 
+/// Get the current power state for all instances.
+/// Currently stubbed out to return 0 (off) for all instances.
+pub fn get_power_state() -> HashMap<u8, u8> {
+    let mut power_state = HashMap::new();
+    for id in VALID_IDS {
+        power_state.insert(id, 0);
+    }
+    power_state
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct State {
     #[serde(default)]
     pub current_input: Option<u8>,
     #[serde(default)]
     pub hard_power_state: HashMap<u8, u8>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct StatusResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_input: Option<u8>,
+    pub hard_power: HashMap<String, String>,
+}
+
+impl From<State> for StatusResponse {
+    fn from(state: State) -> Self {
+        let mut hard_power = HashMap::new();
+        for id in VALID_IDS {
+            let value = state.hard_power_state.get(&id).copied().unwrap_or(0);
+            let status = if value == 1 { "on" } else { "off" };
+            hard_power.insert(id.to_string(), status.to_string());
+        }
+        StatusResponse {
+            current_input: state.current_input,
+            hard_power,
+        }
+    }
 }
 
 impl Default for State {
@@ -86,6 +118,21 @@ impl StateManager {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut state = self.state.lock().unwrap();
         state.hard_power_state.insert(id, value);
+        drop(state); // Release lock before file I/O
+        self.save_state()?;
+        Ok(())
+    }
+
+    pub fn get_state(&self) -> State {
+        let state = self.state.lock().unwrap();
+        state.clone()
+    }
+
+    pub fn clear_and_regenerate_state(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let power_state = get_power_state();
+        let mut state = self.state.lock().unwrap();
+        state.current_input = None;
+        state.hard_power_state = power_state;
         drop(state); // Release lock before file I/O
         self.save_state()?;
         Ok(())
