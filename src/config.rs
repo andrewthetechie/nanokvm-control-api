@@ -11,6 +11,10 @@ pub struct Config {
     pub hard_power_delay_ms: f32,
     pub power_default_state: u8,
     pub state_storage_path: String,
+    pub log_level: String,
+    pub log_file: String,
+    pub i2c_bus: String,
+    pub i2c_address: String
 }
 
 
@@ -23,8 +27,11 @@ pub fn read_config() -> Config {
         soft_power_long_press_ms: get_env_float("SOFT_POWER_LONG_PRESS_MS", 90.0),
         hard_power_delay_ms: get_env_float("HARD_POWER_DELAY_MS", 30.0),
         power_default_state: get_env_u8("POWER_DEFAULT_STATE", 0),
-        state_storage_path: env::var("STATE_STORAGE_PATH")
-            .unwrap_or("/etc/control_apl/state.json".to_string()),
+        state_storage_path: get_env_string("STATE_STORAGE_PATH", "/etc/control_apl/state.json"),
+        log_level: get_env_string("LOG_LEVEL", "info"),
+        log_file: get_env_string("LOG_FILE", "/var/log/control_api.log"),
+        i2c_bus: get_env_string("I2C_BUS", "/dev/i2c-1"),
+        i2c_address: get_env_string("I2C_ADDRESS", "0x20"),
     }
 }
 
