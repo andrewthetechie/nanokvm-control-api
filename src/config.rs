@@ -1,4 +1,12 @@
+use std::collections::HashMap;
 use std::env;
+
+#[allow(dead_code)] // TODO: Remove this once we're using all of the config
+#[derive(Debug)]
+pub struct InputPinConfig {
+    pub pin: u8,
+    pub pushed_state: u8,
+}
 
 #[allow(dead_code)] // TODO: Remove this once we're using all of the config
 #[derive(Debug)]
@@ -13,8 +21,9 @@ pub struct Config {
     pub state_storage_path: String,
     pub log_level: String,
     pub log_file: String,
-    pub i2c_bus: String,
-    pub i2c_address: String,
+    pub usb_i2c_bus: String,
+    pub usb_i2c_address: String,
+    pub usb_input_config: HashMap<u8, InputPinConfig>,
 }
 
 pub fn read_config() -> Config {
@@ -29,8 +38,9 @@ pub fn read_config() -> Config {
         state_storage_path: get_env_string("STATE_STORAGE_PATH", "./state.json"),
         log_level: get_env_string("LOG_LEVEL", "info"),
         log_file: get_env_string("LOG_FILE", "stdout"),
-        i2c_bus: get_env_string("I2C_BUS", "/dev/i2c-1"),
-        i2c_address: get_env_string("I2C_ADDRESS", "0x20"),
+        usb_i2c_bus: get_env_string("USB_I2C_BUS", "/dev/i2c-1"),
+        usb_i2c_address: get_env_string("USB_I2C_ADDRESS", "0x20"),
+        usb_input_config: get_env_usb_input_config("USB_INPUT_CONFIG", "1,0,0;2,1,0;3,2,0;4,3,0"),
     }
 }
 
@@ -57,4 +67,50 @@ fn get_env_u16(key: &str, default: u16) -> u16 {
 
 fn get_env_string(key: &str, default: &str) -> String {
     env::var(key).unwrap_or(default.to_string())
+}
+
+fn get_env_usb_input_config(key: &str, default: &str) -> HashMap<u8, InputPinConfig> {
+    let config_str = env::var(key).unwrap_or(default.to_string());
+    parse_usb_input_config(&config_str)
+}
+
+fn parse_usb_input_config(config_str: &str) -> HashMap<u8, InputPinConfig> {
+    let mut map = HashMap::new();
+
+    for entry in config_str.split(';') {
+        let entry = entry.trim();
+        if entry.is_empty() {
+            continue;
+        }
+
+        let parts: Vec<&str> = entry.split(',').collect();
+        if parts.len() != 3 {
+            continue; // Skip malformed entries
+        }
+
+        let input_number = match parts[0].trim().parse::<u8>() {
+            Ok(n) => n,
+            Err(_) => continue,
+        };
+
+        let pin_number = match parts[1].trim().parse::<u8>() {
+            Ok(n) => n,
+            Err(_) => continue,
+        };
+
+        let pushed_state = match parts[2].trim().parse::<u8>() {
+            Ok(n) if n == 0 || n == 1 => n,
+            _ => 0, // Default to 0 for invalid pushed_state values
+        };
+
+        map.insert(
+            input_number,
+            InputPinConfig {
+                pin: pin_number,
+                pushed_state,
+            },
+        );
+    }
+
+    map
 }
