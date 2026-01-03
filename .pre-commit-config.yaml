@@ -3,8 +3,6 @@ repos:
     rev: v1.2.1
     hooks:
       - id: fmt
-      - id: cargo-check
-      - id: clippy
       - id: test
       - id: build
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -15,3 +13,19 @@ repos:
       - id: check-toml
       - id: end-of-file-fixer
       - id: forbid-submodules
+  - repo: local
+    hooks:
+      - id: cargo-check
+        name: Cargo check
+        entry: cargo +nightly check
+        language: system
+        args: ["--target", "riscv64gc-unknown-linux-musl"]
+        files: ^src/
+        pass_filenames: false
+      - id: cargo-clippy
+        name: Cargo clippy
+        entry: cargo +nightly clippy
+        language: system
+        args: ["--target", "riscv64gc-unknown-linux-musl"]
+        files: ^src/
+        pass_filenames: false
