@@ -7,7 +7,7 @@ use tiny_http::{Header, Method, Response, Server, StatusCode};
 mod config;
 mod control;
 use crate::config::{Config, read_config};
-use crate::control::{StateManager, StatusResponse, handle_input, handle_power};
+use crate::control::{StateManager, StatusResponse, handle_input, handle_power, init_pcf8574};
 use std::sync::Arc;
 
 // Helper to extract action from query parameters
@@ -70,8 +70,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     state_manager.clear_and_regenerate_state()?;
     log::info!("State cleared and regenerated");
 
+    log::info!("Initializing PCF8574 device...");
+    let pcf8574 = init_pcf8574(&config.usb_i2c_bus, &config.usb_i2c_address)?;
+    log::info!("PCF8574 device initialized");
+
     log::info!("Setting initial input to 1");
-    let _ = handle_input(&state_manager, "1");
+    let pcf8574_clone = Arc::clone(&pcf8574);
+    let _ = handle_input(
+        &state_manager,
+        "1",
+        pcf8574_clone,
+        &config.usb_input_config,
+        config.button_press_delay_ms,
+    );
 
     let server_url = format!("{}:{}", config.server_host, config.server_port);
     let server = Server::http(server_url.clone()).unwrap();
@@ -81,6 +92,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         let method = request.method().clone();
         let url = request.url().to_string();
         let state_manager = Arc::clone(&state_manager);
+        let pcf8574 = Arc::clone(&pcf8574);
+        let input_config = config.usb_input_config.clone();
+        let button_delay = config.button_press_delay_ms;
 
         log::debug!("received request -> method: {:?}, url: {:?}", method, url);
 
@@ -126,9 +140,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
 
             // POST/PUT /input/{id}
-            (Method::Post, ["input", id]) | (Method::Put, ["input", id]) => {
-                handle_input(&state_manager, id)
-            }
+            (Method::Post, ["input", id]) | (Method::Put, ["input", id]) => handle_input(
+                &state_manager,
+                id,
+                pcf8574.clone(),
+                &input_config,
+                button_delay,
+            ),
 
             // POST/PUT /power/soft/{id}
             (Method::Post, ["power", "soft", id]) | (Method::Put, ["power", "soft", id]) => {

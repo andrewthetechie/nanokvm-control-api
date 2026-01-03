@@ -1,8 +1,13 @@
+use crate::config::InputPinConfig;
+use linux_embedded_hal::I2cdev;
+use pcf857x::{OutputPin, Pcf8574, SlaveAddr};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 use tiny_http::{Response, StatusCode};
 
 pub const VALID_IDS: [u8; 4] = [1, 2, 3, 4];
@@ -139,6 +144,46 @@ impl StateManager {
     }
 }
 
+/// Initialize the PCF8574 device using the I2C bus and address from config.
+/// Returns a thread-safe shared reference to the device.
+pub fn init_pcf8574(
+    i2c_bus: &str,
+    i2c_address_str: &str,
+) -> Result<Arc<Mutex<Pcf8574<I2cdev>>>, Box<dyn std::error::Error>> {
+    // Parse the I2C address from hex string (e.g., "0x20" -> 0x20)
+    let address = if i2c_address_str.starts_with("0x") || i2c_address_str.starts_with("0X") {
+        u8::from_str_radix(&i2c_address_str[2..], 16)?
+    } else {
+        i2c_address_str.parse::<u8>()?
+    };
+
+    log::info!(
+        "Initializing PCF8574 on bus {} with address 0x{:02x}",
+        i2c_bus,
+        address
+    );
+
+    // Open the I2C device
+    let i2c = I2cdev::new(i2c_bus)?;
+
+    // For PCF8574, the base address is 0x20, and A0/A1/A2 pins determine the final address
+    // Extract the address bits: address = 0x20 + (A2 << 2) + (A1 << 1) + A0
+    // So: address_bits = address - 0x20, then extract individual bits
+    let address_offset = address.wrapping_sub(0x20);
+    let a0 = (address_offset & 0x01) != 0;
+    let a1 = (address_offset & 0x02) != 0;
+    let a2 = (address_offset & 0x04) != 0;
+
+    log::debug!("PCF8574 address bits: A0={}, A1={}, A2={}", a0, a1, a2);
+
+    // Create SlaveAddr from the address bits
+    let slave_addr = SlaveAddr::Alternative(a0, a1, a2);
+    let pcf8574 = Pcf8574::new(i2c, slave_addr);
+
+    log::info!("PCF8574 device created successfully");
+    Ok(Arc::new(Mutex::new(pcf8574)))
+}
+
 pub fn parse_id(id_str: &str) -> Result<u8, Response<std::io::Cursor<Vec<u8>>>> {
     if let Ok(id) = id_str.parse::<u8>()
         && VALID_IDS.contains(&id)
@@ -152,14 +197,215 @@ pub fn parse_id(id_str: &str) -> Result<u8, Response<std::io::Cursor<Vec<u8>>>> 
 pub fn handle_input(
     state_manager: &StateManager,
     id_str: &str,
+    pcf8574: Arc<Mutex<Pcf8574<I2cdev>>>,
+    input_config: &HashMap<u8, InputPinConfig>,
+    button_press_delay_ms: f32,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
     match parse_id(id_str) {
         Ok(id) => {
+            // Look up the input configuration
+            let pin_config = match input_config.get(&id) {
+                Some(config) => config,
+                None => {
+                    log::error!("Input ID {} not found in USB input config", id);
+                    return Response::from_string(format!("Input ID {} not configured", id))
+                        .with_status_code(StatusCode(400));
+                }
+            };
+
+            // Update state first
             if let Err(e) = state_manager.update_current_input(id) {
                 log::error!("Failed to update state: {}", e);
                 return Response::from_string("Internal server error")
                     .with_status_code(StatusCode(500));
             }
+
+            // Toggle the pin using PCF8574
+            // We need to release the lock before sleeping, so we'll do this in two steps
+            // First: set to pushed_state
+            {
+                let mut device = match pcf8574.lock() {
+                    Ok(guard) => guard,
+                    Err(e) => {
+                        log::error!("Failed to lock PCF8574 device: {}", e);
+                        return Response::from_string("Internal server error")
+                            .with_status_code(StatusCode(500));
+                    }
+                };
+
+                // Split the device to access individual pins
+                let mut pins = device.split();
+
+                // Set pin to pushed_state - we need to match on pin number and call set_high/set_low directly
+                // since each pin type is different, we can't store them in a single variable
+                if pin_config.pin > 7 {
+                    log::error!("Invalid pin number: {}", pin_config.pin);
+                    return Response::from_string(format!(
+                        "Invalid pin number: {}",
+                        pin_config.pin
+                    ))
+                    .with_status_code(StatusCode(500));
+                }
+
+                let set_result = match pin_config.pin {
+                    0 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p0.set_high()
+                        } else {
+                            pins.p0.set_low()
+                        }
+                    }
+                    1 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p1.set_high()
+                        } else {
+                            pins.p1.set_low()
+                        }
+                    }
+                    2 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p2.set_high()
+                        } else {
+                            pins.p2.set_low()
+                        }
+                    }
+                    3 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p3.set_high()
+                        } else {
+                            pins.p3.set_low()
+                        }
+                    }
+                    4 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p4.set_high()
+                        } else {
+                            pins.p4.set_low()
+                        }
+                    }
+                    5 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p5.set_high()
+                        } else {
+                            pins.p5.set_low()
+                        }
+                    }
+                    6 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p6.set_high()
+                        } else {
+                            pins.p6.set_low()
+                        }
+                    }
+                    7 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p7.set_high()
+                        } else {
+                            pins.p7.set_low()
+                        }
+                    }
+                    _ => unreachable!(), // Already checked above
+                };
+
+                if let Err(e) = set_result {
+                    log::error!(
+                        "Failed to set pin {} to pushed state: {:?}",
+                        pin_config.pin,
+                        e
+                    );
+                    return Response::from_string("Internal server error")
+                        .with_status_code(StatusCode(500));
+                }
+            } // Lock is released here
+
+            // Wait for the button press delay (lock is released during sleep)
+            thread::sleep(Duration::from_millis(button_press_delay_ms as u64));
+
+            // Second: set to inverse of pushed_state
+            {
+                let mut device = match pcf8574.lock() {
+                    Ok(guard) => guard,
+                    Err(e) => {
+                        log::error!("Failed to lock PCF8574 device: {}", e);
+                        return Response::from_string("Internal server error")
+                            .with_status_code(StatusCode(500));
+                    }
+                };
+
+                let mut pins = device.split();
+
+                // Set to inverse state
+                let set_result = match pin_config.pin {
+                    0 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p0.set_low()
+                        } else {
+                            pins.p0.set_high()
+                        }
+                    }
+                    1 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p1.set_low()
+                        } else {
+                            pins.p1.set_high()
+                        }
+                    }
+                    2 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p2.set_low()
+                        } else {
+                            pins.p2.set_high()
+                        }
+                    }
+                    3 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p3.set_low()
+                        } else {
+                            pins.p3.set_high()
+                        }
+                    }
+                    4 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p4.set_low()
+                        } else {
+                            pins.p4.set_high()
+                        }
+                    }
+                    5 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p5.set_low()
+                        } else {
+                            pins.p5.set_high()
+                        }
+                    }
+                    6 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p6.set_low()
+                        } else {
+                            pins.p6.set_high()
+                        }
+                    }
+                    7 => {
+                        if pin_config.pushed_state == 1 {
+                            pins.p7.set_low()
+                        } else {
+                            pins.p7.set_high()
+                        }
+                    }
+                    _ => unreachable!(), // We already validated this above
+                };
+
+                if let Err(e) = set_result {
+                    log::error!(
+                        "Failed to set pin {} to inverse state: {:?}",
+                        pin_config.pin,
+                        e
+                    );
+                    return Response::from_string("Internal server error")
+                        .with_status_code(StatusCode(500));
+                }
+            } // Lock is released here
+
             log::info!("Setting input to {}", id);
             Response::from_string(format!("Input {} selected", id))
         }

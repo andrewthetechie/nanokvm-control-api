@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::env;
 
-#[allow(dead_code)] // TODO: Remove this once we're using all of the config
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InputPinConfig {
     pub pin: u8,
     pub pushed_state: u8,
@@ -30,15 +29,15 @@ pub fn read_config() -> Config {
     Config {
         server_port: get_env_u16("SERVER_PORT", 8000),
         server_host: get_env_string("SERVER_HOST", "0.0.0.0"),
-        button_press_delay_ms: get_env_float("BUTTON_PRESS_DELAY_MS", 30.0),
-        soft_power_short_press_ms: get_env_float("SOFT_POWER_SHORT_PRESS_MS", 30.0),
-        soft_power_long_press_ms: get_env_float("SOFT_POWER_LONG_PRESS_MS", 90.0),
-        hard_power_delay_ms: get_env_float("HARD_POWER_DELAY_MS", 30.0),
+        button_press_delay_ms: get_env_float("BUTTON_PRESS_DELAY_MS", 50.0),
+        soft_power_short_press_ms: get_env_float("SOFT_POWER_SHORT_PRESS_MS", 50.0),
+        soft_power_long_press_ms: get_env_float("SOFT_POWER_LONG_PRESS_MS", 120.0),
+        hard_power_delay_ms: get_env_float("HARD_POWER_DELAY_MS", 50.0),
         power_default_state: get_env_u8("POWER_DEFAULT_STATE", 0),
         state_storage_path: get_env_string("STATE_STORAGE_PATH", "./state.json"),
         log_level: get_env_string("LOG_LEVEL", "info"),
         log_file: get_env_string("LOG_FILE", "stdout"),
-        usb_i2c_bus: get_env_string("USB_I2C_BUS", "/dev/i2c-1"),
+        usb_i2c_bus: get_env_string("USB_I2C_BUS", "/dev/i2c-5"),
         usb_i2c_address: get_env_string("USB_I2C_ADDRESS", "0x20"),
         usb_input_config: get_env_usb_input_config("USB_INPUT_CONFIG", "1,0,0;2,1,0;3,2,0;4,3,0"),
     }
