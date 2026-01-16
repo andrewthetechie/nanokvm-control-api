@@ -224,7 +224,7 @@ pub fn handle_input(
             // We need to release the lock before sleeping, so we'll do this in two steps
             // First: set to pushed_state
             {
-                let mut device = match pcf8574.lock() {
+                let device = match pcf8574.lock() {
                     Ok(guard) => guard,
                     Err(e) => {
                         log::error!("Failed to lock PCF8574 device: {}", e);
@@ -323,7 +323,7 @@ pub fn handle_input(
 
             // Second: set to inverse of pushed_state
             {
-                let mut device = match pcf8574.lock() {
+                let device = match pcf8574.lock() {
                     Ok(guard) => guard,
                     Err(e) => {
                         log::error!("Failed to lock PCF8574 device: {}", e);
