@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: ['**']
+    branches: ["**"]
 
 jobs:
   build:
@@ -13,9 +13,11 @@ jobs:
           - os-name: Linux-riscv64-gnu
             runs-on: ubuntu-24.04
             target: riscv64gc-unknown-linux-gnu
+            target_short: riscv64
           - os-name: Linux-riscv64-musl
             runs-on: ubuntu-24.04
             target: riscv64gc-unknown-linux-musl
+            target_short: riscv64-musl
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
       - name: Checkout code
@@ -45,6 +47,6 @@ jobs:
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nanokvm-control-api-riscv64
-          path: target/riscv64gc-unknown-linux-musl/release/nanokvm-control-api
+          name: nanokvm-control-api-${{ matrix.platform.target_short }}
+          path: target/ ${{ matrix.platform.target }}/release/nanokvm-control-api
           retention-days: 7
