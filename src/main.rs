@@ -80,7 +80,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         &state_manager,
         "1",
         pcf8574_clone,
-        &config.usb_input_config,
+        &config.input_config,
         config.button_press_delay_ms,
     );
 
@@ -93,7 +93,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let url = request.url().to_string();
         let state_manager = Arc::clone(&state_manager);
         let pcf8574 = Arc::clone(&pcf8574);
-        let input_config = config.usb_input_config.clone();
+        let input_config = config.input_config.clone();
         let button_delay = config.button_press_delay_ms;
 
         log::debug!("received request -> method: {:?}, url: {:?}", method, url);

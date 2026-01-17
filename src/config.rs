@@ -22,7 +22,9 @@ pub struct Config {
     pub log_file: String,
     pub usb_i2c_bus: String,
     pub usb_i2c_address: String,
-    pub usb_input_config: HashMap<u8, InputPinConfig>,
+    pub input_config: HashMap<u8, InputPinConfig>,
+    pub power_soft_config: HashMap<u8, InputPinConfig>,
+    pub power_hard_config: HashMap<u8, InputPinConfig>,
 }
 
 pub fn read_config() -> Config {
@@ -39,7 +41,9 @@ pub fn read_config() -> Config {
         log_file: get_env_string("LOG_FILE", "stdout"),
         usb_i2c_bus: get_env_string("USB_I2C_BUS", "/dev/i2c-5"),
         usb_i2c_address: get_env_string("USB_I2C_ADDRESS", "0x20"),
-        usb_input_config: get_env_usb_input_config("USB_INPUT_CONFIG", "1,0,0;2,1,0;3,2,0;4,3,0"),
+        input_config: get_env_input_config("INPUT_CONFIG", "1,0,0;2,1,0;3,2,0;4,3,0"),
+        power_soft_config: get_env_input_config("POWER_SOFT_CONFIG", "1,4,0;2,5,0;3,6,0;4,7,0"),
+        power_hard_config: get_env_input_config("POWER_HARD_CONFIG", "1,8,0;2,9,0;3,10,0;4,11,0"),
     }
 }
 
@@ -68,12 +72,12 @@ fn get_env_string(key: &str, default: &str) -> String {
     env::var(key).unwrap_or(default.to_string())
 }
 
-fn get_env_usb_input_config(key: &str, default: &str) -> HashMap<u8, InputPinConfig> {
+fn get_env_input_config(key: &str, default: &str) -> HashMap<u8, InputPinConfig> {
     let config_str = env::var(key).unwrap_or(default.to_string());
-    parse_usb_input_config(&config_str)
+    parse_input_config(&config_str)
 }
 
-fn parse_usb_input_config(config_str: &str) -> HashMap<u8, InputPinConfig> {
+fn parse_input_config(config_str: &str) -> HashMap<u8, InputPinConfig> {
     let mut map = HashMap::new();
 
     for entry in config_str.split(';') {
