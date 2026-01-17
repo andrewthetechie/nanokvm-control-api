@@ -418,36 +418,456 @@ pub fn handle_power(
     kind: &str,
     id_str: &str,
     action: &str,
+    pcf8574: Arc<Mutex<Pcf8574<I2cdev>>>,
+    power_soft_config: &HashMap<u8, InputPinConfig>,
+    power_hard_config: &HashMap<u8, crate::config::HardPowerPinConfig>,
+    hard_power_delay_ms: f32,
+) -> Response<std::io::Cursor<Vec<u8>>> {
+    match kind {
+        "soft" => handle_power_soft(state_manager, id_str, action),
+        "hard" => handle_power_hard(
+            state_manager,
+            id_str,
+            action,
+            pcf8574,
+            power_hard_config,
+            hard_power_delay_ms,
+        ),
+        _ => Response::from_string(format!("Invalid power kind: {}", kind))
+            .with_status_code(StatusCode(400)),
+    }
+}
+
+fn handle_power_soft(
+    state_manager: &StateManager,
+    id_str: &str,
+    action: &str,
+) -> Response<std::io::Cursor<Vec<u8>>> {
+    // Stub implementation - will be built later
+    match parse_id(id_str) {
+        Ok(id) => {
+            log::info!("Soft power action {} for {} (stubbed)", action, id);
+            Response::from_string(format!(
+                "Soft power action {} triggered for {} (stubbed)",
+                action, id
+            ))
+        }
+        Err(resp) => resp,
+    }
+}
+
+fn handle_power_hard(
+    state_manager: &StateManager,
+    id_str: &str,
+    action: &str,
+    pcf8574: Arc<Mutex<Pcf8574<I2cdev>>>,
+    power_hard_config: &HashMap<u8, crate::config::HardPowerPinConfig>,
+    hard_power_delay_ms: f32,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
     // Validate action (case-insensitive)
     let action_lower = action.to_lowercase();
-    if action_lower != "on" && action_lower != "off" {
-        return Response::from_string("Action must be 'on' or 'off'")
+    if action_lower != "on" && action_lower != "off" && action_lower != "toggle" {
+        return Response::from_string("Action must be 'on', 'off', or 'toggle'")
             .with_status_code(StatusCode(400));
     }
 
     match parse_id(id_str) {
         Ok(id) => {
-            // Update state if it's a hard power action
-            if kind == "hard" {
-                let power_value = if action_lower == "on" { 1 } else { 0 };
-                if let Err(e) = state_manager.update_hard_power_state(id, power_value) {
-                    log::error!("Failed to update state: {}", e);
-                    return Response::from_string("Internal server error")
-                        .with_status_code(StatusCode(500));
+            // Look up the pin configuration
+            let pin_config = match power_hard_config.get(&id) {
+                Some(config) => config,
+                None => {
+                    log::error!("Power ID {} not found in power hard config", id);
+                    return Response::from_string(format!("Power ID {} not configured", id))
+                        .with_status_code(StatusCode(400));
                 }
+            };
+
+            // Validate pin number
+            if pin_config.pin > 7 {
+                log::error!("Invalid pin number: {}", pin_config.pin);
+                return Response::from_string(format!("Invalid pin number: {}", pin_config.pin))
+                    .with_status_code(StatusCode(500));
             }
 
-            log::info!(
-                "Power {} action {} triggered for {}",
-                kind,
-                action_lower,
-                id
-            );
-            Response::from_string(format!(
-                "Power {} action {} triggered for {}",
-                kind, action_lower, id
-            ))
+            // Handle different actions
+            match action_lower.as_str() {
+                "off" => {
+                    // Set pin to opposite of on_state
+                    let target_state = if pin_config.on_state == 1 {
+                        false
+                    } else {
+                        true
+                    };
+
+                    let device = match pcf8574.lock() {
+                        Ok(guard) => guard,
+                        Err(e) => {
+                            log::error!("Failed to lock PCF8574 device: {}", e);
+                            return Response::from_string("Internal server error")
+                                .with_status_code(StatusCode(500));
+                        }
+                    };
+
+                    let mut pins = device.split();
+                    let set_result = match pin_config.pin {
+                        0 => {
+                            if target_state {
+                                pins.p0.set_high()
+                            } else {
+                                pins.p0.set_low()
+                            }
+                        }
+                        1 => {
+                            if target_state {
+                                pins.p1.set_high()
+                            } else {
+                                pins.p1.set_low()
+                            }
+                        }
+                        2 => {
+                            if target_state {
+                                pins.p2.set_high()
+                            } else {
+                                pins.p2.set_low()
+                            }
+                        }
+                        3 => {
+                            if target_state {
+                                pins.p3.set_high()
+                            } else {
+                                pins.p3.set_low()
+                            }
+                        }
+                        4 => {
+                            if target_state {
+                                pins.p4.set_high()
+                            } else {
+                                pins.p4.set_low()
+                            }
+                        }
+                        5 => {
+                            if target_state {
+                                pins.p5.set_high()
+                            } else {
+                                pins.p5.set_low()
+                            }
+                        }
+                        6 => {
+                            if target_state {
+                                pins.p6.set_high()
+                            } else {
+                                pins.p6.set_low()
+                            }
+                        }
+                        7 => {
+                            if target_state {
+                                pins.p7.set_high()
+                            } else {
+                                pins.p7.set_low()
+                            }
+                        }
+                        _ => unreachable!(), // Already validated above
+                    };
+
+                    if let Err(e) = set_result {
+                        log::error!("Failed to set pin {} to off state: {:?}", pin_config.pin, e);
+                        return Response::from_string("Internal server error")
+                            .with_status_code(StatusCode(500));
+                    }
+
+                    // Update state
+                    if let Err(e) = state_manager.update_hard_power_state(id, 0) {
+                        log::error!("Failed to update state: {}", e);
+                        return Response::from_string("Internal server error")
+                            .with_status_code(StatusCode(500));
+                    }
+
+                    log::info!("Power hard off triggered for {}", id);
+                    Response::from_string(format!("Power hard off triggered for {}", id))
+                }
+
+                "on" => {
+                    // Set pin to on_state value
+                    let target_state = pin_config.on_state == 1;
+
+                    let device = match pcf8574.lock() {
+                        Ok(guard) => guard,
+                        Err(e) => {
+                            log::error!("Failed to lock PCF8574 device: {}", e);
+                            return Response::from_string("Internal server error")
+                                .with_status_code(StatusCode(500));
+                        }
+                    };
+
+                    let mut pins = device.split();
+                    let set_result = match pin_config.pin {
+                        0 => {
+                            if target_state {
+                                pins.p0.set_high()
+                            } else {
+                                pins.p0.set_low()
+                            }
+                        }
+                        1 => {
+                            if target_state {
+                                pins.p1.set_high()
+                            } else {
+                                pins.p1.set_low()
+                            }
+                        }
+                        2 => {
+                            if target_state {
+                                pins.p2.set_high()
+                            } else {
+                                pins.p2.set_low()
+                            }
+                        }
+                        3 => {
+                            if target_state {
+                                pins.p3.set_high()
+                            } else {
+                                pins.p3.set_low()
+                            }
+                        }
+                        4 => {
+                            if target_state {
+                                pins.p4.set_high()
+                            } else {
+                                pins.p4.set_low()
+                            }
+                        }
+                        5 => {
+                            if target_state {
+                                pins.p5.set_high()
+                            } else {
+                                pins.p5.set_low()
+                            }
+                        }
+                        6 => {
+                            if target_state {
+                                pins.p6.set_high()
+                            } else {
+                                pins.p6.set_low()
+                            }
+                        }
+                        7 => {
+                            if target_state {
+                                pins.p7.set_high()
+                            } else {
+                                pins.p7.set_low()
+                            }
+                        }
+                        _ => unreachable!(), // Already validated above
+                    };
+
+                    if let Err(e) = set_result {
+                        log::error!("Failed to set pin {} to on state: {:?}", pin_config.pin, e);
+                        return Response::from_string("Internal server error")
+                            .with_status_code(StatusCode(500));
+                    }
+
+                    // Update state
+                    if let Err(e) = state_manager.update_hard_power_state(id, 1) {
+                        log::error!("Failed to update state: {}", e);
+                        return Response::from_string("Internal server error")
+                            .with_status_code(StatusCode(500));
+                    }
+
+                    log::info!("Power hard on triggered for {}", id);
+                    Response::from_string(format!("Power hard on triggered for {}", id))
+                }
+
+                "toggle" => {
+                    // First: set to off state (opposite of on_state)
+                    let off_state = if pin_config.on_state == 1 {
+                        false
+                    } else {
+                        true
+                    };
+
+                    {
+                        let device = match pcf8574.lock() {
+                            Ok(guard) => guard,
+                            Err(e) => {
+                                log::error!("Failed to lock PCF8574 device: {}", e);
+                                return Response::from_string("Internal server error")
+                                    .with_status_code(StatusCode(500));
+                            }
+                        };
+
+                        let mut pins = device.split();
+                        let set_result = match pin_config.pin {
+                            0 => {
+                                if off_state {
+                                    pins.p0.set_high()
+                                } else {
+                                    pins.p0.set_low()
+                                }
+                            }
+                            1 => {
+                                if off_state {
+                                    pins.p1.set_high()
+                                } else {
+                                    pins.p1.set_low()
+                                }
+                            }
+                            2 => {
+                                if off_state {
+                                    pins.p2.set_high()
+                                } else {
+                                    pins.p2.set_low()
+                                }
+                            }
+                            3 => {
+                                if off_state {
+                                    pins.p3.set_high()
+                                } else {
+                                    pins.p3.set_low()
+                                }
+                            }
+                            4 => {
+                                if off_state {
+                                    pins.p4.set_high()
+                                } else {
+                                    pins.p4.set_low()
+                                }
+                            }
+                            5 => {
+                                if off_state {
+                                    pins.p5.set_high()
+                                } else {
+                                    pins.p5.set_low()
+                                }
+                            }
+                            6 => {
+                                if off_state {
+                                    pins.p6.set_high()
+                                } else {
+                                    pins.p6.set_low()
+                                }
+                            }
+                            7 => {
+                                if off_state {
+                                    pins.p7.set_high()
+                                } else {
+                                    pins.p7.set_low()
+                                }
+                            }
+                            _ => unreachable!(), // Already validated above
+                        };
+
+                        if let Err(e) = set_result {
+                            log::error!(
+                                "Failed to set pin {} to off state: {:?}",
+                                pin_config.pin,
+                                e
+                            );
+                            return Response::from_string("Internal server error")
+                                .with_status_code(StatusCode(500));
+                        }
+                    } // Lock is released here
+
+                    // Wait for the hard power delay
+                    thread::sleep(Duration::from_millis(hard_power_delay_ms as u64));
+
+                    // Second: set to on state
+                    {
+                        let device = match pcf8574.lock() {
+                            Ok(guard) => guard,
+                            Err(e) => {
+                                log::error!("Failed to lock PCF8574 device: {}", e);
+                                return Response::from_string("Internal server error")
+                                    .with_status_code(StatusCode(500));
+                            }
+                        };
+
+                        let mut pins = device.split();
+                        let target_state = pin_config.on_state == 1;
+                        let set_result = match pin_config.pin {
+                            0 => {
+                                if target_state {
+                                    pins.p0.set_high()
+                                } else {
+                                    pins.p0.set_low()
+                                }
+                            }
+                            1 => {
+                                if target_state {
+                                    pins.p1.set_high()
+                                } else {
+                                    pins.p1.set_low()
+                                }
+                            }
+                            2 => {
+                                if target_state {
+                                    pins.p2.set_high()
+                                } else {
+                                    pins.p2.set_low()
+                                }
+                            }
+                            3 => {
+                                if target_state {
+                                    pins.p3.set_high()
+                                } else {
+                                    pins.p3.set_low()
+                                }
+                            }
+                            4 => {
+                                if target_state {
+                                    pins.p4.set_high()
+                                } else {
+                                    pins.p4.set_low()
+                                }
+                            }
+                            5 => {
+                                if target_state {
+                                    pins.p5.set_high()
+                                } else {
+                                    pins.p5.set_low()
+                                }
+                            }
+                            6 => {
+                                if target_state {
+                                    pins.p6.set_high()
+                                } else {
+                                    pins.p6.set_low()
+                                }
+                            }
+                            7 => {
+                                if target_state {
+                                    pins.p7.set_high()
+                                } else {
+                                    pins.p7.set_low()
+                                }
+                            }
+                            _ => unreachable!(), // Already validated above
+                        };
+
+                        if let Err(e) = set_result {
+                            log::error!(
+                                "Failed to set pin {} to on state: {:?}",
+                                pin_config.pin,
+                                e
+                            );
+                            return Response::from_string("Internal server error")
+                                .with_status_code(StatusCode(500));
+                        }
+                    } // Lock is released here
+
+                    // Update state
+                    if let Err(e) = state_manager.update_hard_power_state(id, 1) {
+                        log::error!("Failed to update state: {}", e);
+                        return Response::from_string("Internal server error")
+                            .with_status_code(StatusCode(500));
+                    }
+
+                    log::info!("Power hard toggle triggered for {}", id);
+                    Response::from_string(format!("Power hard toggle triggered for {}", id))
+                }
+
+                _ => unreachable!(), // Already validated above
+            }
         }
         Err(resp) => resp,
     }

@@ -94,7 +94,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         let state_manager = Arc::clone(&state_manager);
         let pcf8574 = Arc::clone(&pcf8574);
         let input_config = config.input_config.clone();
+        let power_soft_config = config.power_soft_config.clone();
+        let power_hard_config = config.power_hard_config.clone();
         let button_delay = config.button_press_delay_ms;
+        let hard_power_delay = config.hard_power_delay_ms;
 
         log::debug!("received request -> method: {:?}, url: {:?}", method, url);
 
@@ -151,7 +154,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             // POST/PUT /power/soft/{id}
             (Method::Post, ["power", "soft", id]) | (Method::Put, ["power", "soft", id]) => {
                 match extract_action(query_part) {
-                    Some(action) => handle_power(&state_manager, "soft", id, action),
+                    Some(action) => handle_power(
+                        &state_manager,
+                        "soft",
+                        id,
+                        action,
+                        pcf8574.clone(),
+                        &power_soft_config,
+                        &power_hard_config,
+                        hard_power_delay,
+                    ),
                     None => Response::from_string("Missing required 'action' query parameter")
                         .with_status_code(StatusCode(400)),
                 }
@@ -160,7 +172,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             // POST/PUT /power/hard/{id}
             (Method::Post, ["power", "hard", id]) | (Method::Put, ["power", "hard", id]) => {
                 match extract_action(query_part) {
-                    Some(action) => handle_power(&state_manager, "hard", id, action),
+                    Some(action) => handle_power(
+                        &state_manager,
+                        "hard",
+                        id,
+                        action,
+                        pcf8574.clone(),
+                        &power_soft_config,
+                        &power_hard_config,
+                        hard_power_delay,
+                    ),
                     None => Response::from_string("Missing required 'action' query parameter")
                         .with_status_code(StatusCode(400)),
                 }
