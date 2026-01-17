@@ -7,6 +7,12 @@ pub struct InputPinConfig {
     pub pushed_state: u8,
 }
 
+#[derive(Debug, Clone)]
+pub struct HardPowerPinConfig {
+    pub pin: u8,
+    pub on_state: u8,
+}
+
 #[allow(dead_code)] // TODO: Remove this once we're using all of the config
 #[derive(Debug)]
 pub struct Config {
@@ -24,7 +30,7 @@ pub struct Config {
     pub usb_i2c_address: String,
     pub input_config: HashMap<u8, InputPinConfig>,
     pub power_soft_config: HashMap<u8, InputPinConfig>,
-    pub power_hard_config: HashMap<u8, InputPinConfig>,
+    pub power_hard_config: HashMap<u8, HardPowerPinConfig>,
 }
 
 pub fn read_config() -> Config {
@@ -43,7 +49,10 @@ pub fn read_config() -> Config {
         usb_i2c_address: get_env_string("USB_I2C_ADDRESS", "0x20"),
         input_config: get_env_input_config("INPUT_CONFIG", "1,0,0;2,1,0;3,2,0;4,3,0"),
         power_soft_config: get_env_input_config("POWER_SOFT_CONFIG", "1,4,0;2,5,0;3,6,0;4,7,0"),
-        power_hard_config: get_env_input_config("POWER_HARD_CONFIG", "1,8,0;2,9,0;3,10,0;4,11,0"),
+        power_hard_config: get_env_power_hard_config(
+            "POWER_HARD_CONFIG",
+            "1,8,0;2,9,0;3,10,0;4,11,0",
+        ),
     }
 }
 
@@ -75,6 +84,11 @@ fn get_env_string(key: &str, default: &str) -> String {
 fn get_env_input_config(key: &str, default: &str) -> HashMap<u8, InputPinConfig> {
     let config_str = env::var(key).unwrap_or(default.to_string());
     parse_input_config(&config_str)
+}
+
+fn get_env_power_hard_config(key: &str, default: &str) -> HashMap<u8, HardPowerPinConfig> {
+    let config_str = env::var(key).unwrap_or(default.to_string());
+    parse_power_hard_config(&config_str)
 }
 
 fn parse_input_config(config_str: &str) -> HashMap<u8, InputPinConfig> {
@@ -111,6 +125,47 @@ fn parse_input_config(config_str: &str) -> HashMap<u8, InputPinConfig> {
             InputPinConfig {
                 pin: pin_number,
                 pushed_state,
+            },
+        );
+    }
+
+    map
+}
+
+fn parse_power_hard_config(config_str: &str) -> HashMap<u8, HardPowerPinConfig> {
+    let mut map = HashMap::new();
+
+    for entry in config_str.split(';') {
+        let entry = entry.trim();
+        if entry.is_empty() {
+            continue;
+        }
+
+        let parts: Vec<&str> = entry.split(',').collect();
+        if parts.len() != 3 {
+            continue; // Skip malformed entries
+        }
+
+        let input_number = match parts[0].trim().parse::<u8>() {
+            Ok(n) => n,
+            Err(_) => continue,
+        };
+
+        let pin_number = match parts[1].trim().parse::<u8>() {
+            Ok(n) => n,
+            Err(_) => continue,
+        };
+
+        let on_state = match parts[2].trim().parse::<u8>() {
+            Ok(n) if n == 0 || n == 1 => n,
+            _ => 0, // Default to 0 for invalid pushed_state values
+        };
+
+        map.insert(
+            input_number,
+            HardPowerPinConfig {
+                pin: pin_number,
+                on_state,
             },
         );
     }
