@@ -48,16 +48,16 @@ Replace all dependencies with:
 [package]
 name = "nanokvm-control-api"
 version = "0.2.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 axum = "0.8"
-tokio = { version = "1", features = ["rt", "macros", "time", "fs", "io-util", "net"] }
-clap = { version = "4", features = ["derive"] }
+tokio = { version = "1.49", features = ["rt", "macros", "time", "fs", "io-util", "net"] }
+clap = { version = "4.5", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-toml = "0.8"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+toml = "1.0"
+reqwest = { version = "0.13", default-features = false, features = ["rustls-tls", "json", "stream"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 base64 = "0.22"
@@ -68,10 +68,10 @@ futures-util = "0.3"
 tokio-util = { version = "0.7", features = ["io"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-gpiocdev = "0.7"
+gpiocdev = "0.8"
 ```
 
-Note: `edition = "2021"` not `"2024"` for broad compatibility. `gpiocdev` only compiles on Linux, so it's target-gated.
+Note: `edition = "2024"` for latest Rust features and riscv64 support. `gpiocdev` only compiles on Linux, so it's target-gated.
 
 **Step 2: Create all module directories and stub files**
 
