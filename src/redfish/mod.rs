@@ -8,7 +8,9 @@ use axum::{Json, Router, routing::get};
 use models::*;
 
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/v1/", get(service_root))
+    Router::new()
+        .route("/v1/", get(service_root))
+        .nest("/v1/Systems", systems::routes())
 }
 
 async fn service_root(_auth: RequireAuth) -> Json<ServiceRoot> {
