@@ -52,6 +52,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 nanokvm_client,
             );
 
+            // Default to mounting disk boot ISO on startup
+            if let Err(e) = virtual_media.set_boot_from_disk().await {
+                tracing::warn!("Failed to mount initial disk-boot ISO: {}", e);
+            }
+
             // Create App State
             let state = state::AppState {
                 config: app_config.clone(),
