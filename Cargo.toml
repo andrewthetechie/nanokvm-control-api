@@ -19,6 +19,8 @@ tower = "0.5"
 tower-http = { version = "0.6", features = ["trace"] }
 futures-util = "0.3"
 tokio-util = { version = "0.7", features = ["io"] }
+axum-extra = { version = "0.10", features = ["typed-header"] }
+subtle = "2.6"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gpiocdev = "0.8"
