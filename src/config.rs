@@ -1,174 +1,135 @@
-use std::collections::HashMap;
+use serde::Deserialize;
 use std::env;
+use std::path::Path;
+use tokio::fs;
 
-#[derive(Debug, Clone)]
-pub struct InputPinConfig {
-    pub pin: u8,
-    pub pushed_state: u8,
+#[derive(Debug, Deserialize, Clone)]
+pub struct AppConfig {
+    pub server: ServerConfig,
+    pub auth: AuthConfig,
+    pub power: PowerConfig,
+    pub nanokvm: NanoKvmConfig,
+    pub virtual_media: VirtualMediaConfig,
 }
 
-#[derive(Debug, Clone)]
-pub struct HardPowerPinConfig {
-    pub pin: u8,
-    pub on_state: u8,
+#[derive(Debug, Deserialize, Clone)]
+pub struct ServerConfig {
+    pub host: String,
+    pub port: u16,
 }
 
-#[allow(dead_code)] // TODO: Remove this once we're using all of the config
-#[derive(Debug)]
-pub struct Config {
-    pub server_port: u16,
-    pub server_host: String,
-    pub button_press_delay_ms: f32,
-    pub soft_power_short_press_ms: f32,
-    pub soft_power_long_press_ms: f32,
-    pub hard_power_delay_ms: f32,
-    pub power_default_state: u8,
-    pub state_storage_path: String,
-    pub log_level: String,
-    pub log_file: String,
-    pub usb_i2c_bus: String,
-    pub usb_i2c_address: String,
-    pub input_config: HashMap<u8, InputPinConfig>,
-    pub power_soft_config: HashMap<u8, InputPinConfig>,
-    pub power_hard_config: HashMap<u8, HardPowerPinConfig>,
+#[derive(Debug, Deserialize, Clone)]
+pub struct AuthConfig {
+    pub enabled: bool,
+    pub username: Option<String>,
+    pub password: Option<String>,
 }
 
-pub fn read_config() -> Config {
-    Config {
-        server_port: get_env_u16("SERVER_PORT", 8000),
-        server_host: get_env_string("SERVER_HOST", "0.0.0.0"),
-        button_press_delay_ms: get_env_float("BUTTON_PRESS_DELAY_MS", 50.0),
-        soft_power_short_press_ms: get_env_float("SOFT_POWER_SHORT_PRESS_MS", 50.0),
-        soft_power_long_press_ms: get_env_float("SOFT_POWER_LONG_PRESS_MS", 120.0),
-        hard_power_delay_ms: get_env_float("HARD_POWER_DELAY_MS", 50.0),
-        power_default_state: get_env_u8("POWER_DEFAULT_STATE", 0),
-        state_storage_path: get_env_string("STATE_STORAGE_PATH", "./state.json"),
-        log_level: get_env_string("LOG_LEVEL", "info"),
-        log_file: get_env_string("LOG_FILE", "stdout"),
-        usb_i2c_bus: get_env_string("USB_I2C_BUS", "/dev/i2c-5"),
-        usb_i2c_address: get_env_string("USB_I2C_ADDRESS", "0x20"),
-        input_config: get_env_input_config("INPUT_CONFIG", "1,0,0;2,1,0;3,2,0;4,3,0"),
-        power_soft_config: get_env_input_config("POWER_SOFT_CONFIG", "1,4,0;2,5,0;3,6,0;4,7,0"),
-        power_hard_config: get_env_power_hard_config(
-            "POWER_HARD_CONFIG",
-            "1,8,0;2,9,0;3,10,0;4,11,0",
-        ),
+#[derive(Debug, Deserialize, Clone)]
+pub struct PowerConfig {
+    pub enable_gpio: bool,
+    pub gpio_chip: String,
+    pub power_button_line: u32,
+    pub hard_power_line: u32,
+    pub button_press_delay_ms: u64,
+    pub force_off_delay_ms: u64,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct NanoKvmConfig {
+    #[serde(default)]
+    pub use_mock: bool,
+    pub base_url: String,
+    pub auth_token: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct VirtualMediaConfig {
+    pub isos_dir: String,
+    pub boot_from_disk_iso: String,
+    pub pxe_boot_iso: String,
+    pub download_timeout_secs: u64,
+    pub cleanup_ttl_secs: u64,
+}
+
+pub async fn load_config<P: AsRef<Path>>(path: P) -> Result<AppConfig, Box<dyn std::error::Error>> {
+    let contents = fs::read_to_string(path).await?;
+    let mut config: AppConfig = toml::from_str(&contents)?;
+
+    // Env var overrides
+    if let Ok(port) = env::var("NANOKVM_SERVER_PORT") {
+        config.server.port = port.parse()?;
     }
-}
-
-fn get_env_float(key: &str, default: f32) -> f32 {
-    env::var(key)
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(default)
-}
-
-fn get_env_u8(key: &str, default: u8) -> u8 {
-    env::var(key)
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(default)
-}
-
-fn get_env_u16(key: &str, default: u16) -> u16 {
-    env::var(key)
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(default)
-}
-
-fn get_env_string(key: &str, default: &str) -> String {
-    env::var(key).unwrap_or(default.to_string())
-}
-
-fn get_env_input_config(key: &str, default: &str) -> HashMap<u8, InputPinConfig> {
-    let config_str = env::var(key).unwrap_or(default.to_string());
-    parse_input_config(&config_str)
-}
-
-fn get_env_power_hard_config(key: &str, default: &str) -> HashMap<u8, HardPowerPinConfig> {
-    let config_str = env::var(key).unwrap_or(default.to_string());
-    parse_power_hard_config(&config_str)
-}
-
-fn parse_input_config(config_str: &str) -> HashMap<u8, InputPinConfig> {
-    let mut map = HashMap::new();
-
-    for entry in config_str.split(';') {
-        let entry = entry.trim();
-        if entry.is_empty() {
-            continue;
-        }
-
-        let parts: Vec<&str> = entry.split(',').collect();
-        if parts.len() != 3 {
-            continue; // Skip malformed entries
-        }
-
-        let input_number = match parts[0].trim().parse::<u8>() {
-            Ok(n) => n,
-            Err(_) => continue,
-        };
-
-        let pin_number = match parts[1].trim().parse::<u8>() {
-            Ok(n) => n,
-            Err(_) => continue,
-        };
-
-        let pushed_state = match parts[2].trim().parse::<u8>() {
-            Ok(n) if n == 0 || n == 1 => n,
-            _ => 0, // Default to 0 for invalid pushed_state values
-        };
-
-        map.insert(
-            input_number,
-            InputPinConfig {
-                pin: pin_number,
-                pushed_state,
-            },
-        );
+    if let Ok(host) = env::var("NANOKVM_SERVER_HOST") {
+        config.server.host = host;
     }
 
-    map
-}
-
-fn parse_power_hard_config(config_str: &str) -> HashMap<u8, HardPowerPinConfig> {
-    let mut map = HashMap::new();
-
-    for entry in config_str.split(';') {
-        let entry = entry.trim();
-        if entry.is_empty() {
-            continue;
-        }
-
-        let parts: Vec<&str> = entry.split(',').collect();
-        if parts.len() != 3 {
-            continue; // Skip malformed entries
-        }
-
-        let input_number = match parts[0].trim().parse::<u8>() {
-            Ok(n) => n,
-            Err(_) => continue,
-        };
-
-        let pin_number = match parts[1].trim().parse::<u8>() {
-            Ok(n) => n,
-            Err(_) => continue,
-        };
-
-        let on_state = match parts[2].trim().parse::<u8>() {
-            Ok(n) if n == 0 || n == 1 => n,
-            _ => 0, // Default to 0 for invalid pushed_state values
-        };
-
-        map.insert(
-            input_number,
-            HardPowerPinConfig {
-                pin: pin_number,
-                on_state,
-            },
-        );
+    // Auth overrides
+    if let Ok(enabled) = env::var("NANOKVM_AUTH_ENABLED") {
+        config.auth.enabled = enabled.parse()?;
+    }
+    if let Ok(user) = env::var("NANOKVM_AUTH_USERNAME") {
+        config.auth.username = Some(user);
+    }
+    if let Ok(pass) = env::var("NANOKVM_AUTH_PASSWORD") {
+        config.auth.password = Some(pass);
     }
 
-    map
+    Ok(config)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    #[tokio::test]
+    async fn test_load_config() {
+        let toml_content = r#"
+            [server]
+            host = "127.0.0.1"
+            port = 8000
+
+            [auth]
+            enabled = false
+
+            [power]
+            enable_gpio = false
+            gpio_chip = "/dev/gpiochip1"
+            power_button_line = 3
+            hard_power_line = 4
+            button_press_delay_ms = 500
+            force_off_delay_ms = 5000
+
+            [nanokvm]
+            base_url = "http://localhost:8080"
+
+            [virtual_media]
+            isos_dir = "/data/isos"
+            boot_from_disk_iso = "disk.iso"
+            pxe_boot_iso = "pxe.iso"
+            download_timeout_secs = 600
+            cleanup_ttl_secs = 86400
+        "#;
+
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "{}", toml_content).unwrap();
+
+        let config = load_config(file.path()).await.unwrap();
+        assert_eq!(config.server.port, 8000);
+        assert!(!config.auth.enabled);
+        assert_eq!(config.power.power_button_line, 3);
+        assert_eq!(config.virtual_media.isos_dir, "/data/isos");
+
+        // Test env override
+        unsafe {
+            env::set_var("NANOKVM_SERVER_PORT", "9000");
+        }
+        let config = load_config(file.path()).await.unwrap();
+        assert_eq!(config.server.port, 9000);
+        unsafe {
+            env::remove_var("NANOKVM_SERVER_PORT");
+        }
+    }
 }

@@ -1,0 +1,6 @@
+[Unit]
+Description=NanoKVM ISO Cleanup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/nanokvm-control-api cleanup --config /etc/nanokvm/config.toml

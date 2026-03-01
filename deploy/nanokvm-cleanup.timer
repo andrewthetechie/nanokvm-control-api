@@ -1,0 +1,9 @@
+[Unit]
+Description=Run NanoKVM ISO cleanup hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

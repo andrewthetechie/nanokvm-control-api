@@ -1,0 +1,18 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: tests/integration/Dockerfile.api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./integration/config.test.toml:/etc/nanokvm/config.toml
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: integration/Dockerfile.test
+    depends_on:
+      - api
+    environment:
+      - API_URL=http://api:8000
