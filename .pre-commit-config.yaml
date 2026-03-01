@@ -19,13 +19,13 @@ repos:
         name: Cargo check
         entry: cargo +nightly check
         language: system
-        args: ["--target", "riscv64gc-unknown-linux-musl"]
+        args: []
         files: ^src/
         pass_filenames: false
       - id: cargo-clippy
         name: Cargo clippy
         entry: cargo +nightly clippy
         language: system
-        args: ["--target", "riscv64gc-unknown-linux-musl"]
+        args: []
         files: ^src/
         pass_filenames: false
