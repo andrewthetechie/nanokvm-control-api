@@ -39,6 +39,7 @@ impl Default for StateManager {
 
 #[cfg(test)]
 mod tests {
+    // Tests remain the same...
     use super::*;
 
     #[tokio::test]
@@ -55,5 +56,43 @@ mod tests {
 
         manager.set_power_state(PowerState::Off).await;
         assert_eq!(manager.get_power_state().await, PowerState::Off);
+    }
+}
+
+// Ensure the AppState uses Clone and FromRef for axum extractors
+use crate::config::AppConfig;
+use crate::power::PowerController;
+use crate::virtual_media::manager::VirtualMediaManager;
+use axum::extract::FromRef;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub config: Arc<AppConfig>,
+    pub state_manager: StateManager,
+    pub power_controller: Arc<dyn PowerController>,
+    pub virtual_media: VirtualMediaManager,
+}
+
+impl FromRef<AppState> for Arc<AppConfig> {
+    fn from_ref(state: &AppState) -> Self {
+        state.config.clone()
+    }
+}
+
+impl FromRef<AppState> for StateManager {
+    fn from_ref(state: &AppState) -> Self {
+        state.state_manager.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<dyn PowerController> {
+    fn from_ref(state: &AppState) -> Self {
+        state.power_controller.clone()
+    }
+}
+
+impl FromRef<AppState> for VirtualMediaManager {
+    fn from_ref(state: &AppState) -> Self {
+        state.virtual_media.clone()
     }
 }
