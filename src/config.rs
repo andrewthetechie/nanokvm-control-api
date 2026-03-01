@@ -37,6 +37,8 @@ pub struct PowerConfig {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct NanoKvmConfig {
+    #[serde(default)]
+    pub use_mock: bool,
     pub base_url: String,
     pub auth_token: Option<String>,
 }
@@ -116,7 +118,7 @@ mod tests {
 
         let config = load_config(file.path()).await.unwrap();
         assert_eq!(config.server.port, 8000);
-        assert_eq!(config.auth.enabled, false);
+        assert!(!config.auth.enabled);
         assert_eq!(config.power.power_button_line, 3);
         assert_eq!(config.virtual_media.isos_dir, "/data/isos");
 

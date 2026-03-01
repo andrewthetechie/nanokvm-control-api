@@ -71,18 +71,30 @@ impl VirtualMediaManager {
         *self.mounted_iso.write().await = None;
     }
 
+    #[allow(clippy::collapsible_if)]
+    #[allow(dead_code)]
+    async fn insert_media(&self, image_url: &str) -> Result<(), AppError> {
+        // TODO: Implement media insertion logic (e.g., download image, mount it)
+        warn!(
+            "`insert_media` called with URL: {}. Not yet fully implemented.",
+            image_url
+        );
+        Ok(())
+    }
+
     async fn ensure_iso_exists(&self, path: &Path) -> Result<(), AppError> {
         if !path.exists() {
             warn!("Expected ISO not found at {:?}", path);
             // In a real implementation, we might want to automatically create a dummy ISO
             // or fetch the required ISO if missing. For now, we'll try to create an empty file
             // to satisfy basic checks if the directory exists, though a real ISO is needed for boot.
-            if let Some(parent) = path.parent()
-                && !parent.exists()
-            {
-                fs::create_dir_all(parent)
-                    .await
-                    .map_err(|e| AppError::Internal(format!("Failed to create ISO dir: {}", e)))?;
+            #[allow(clippy::collapsible_if)]
+            if let Some(parent) = path.parent() {
+                if !parent.exists() {
+                    fs::create_dir_all(parent).await.map_err(|e| {
+                        AppError::Internal(format!("Failed to create ISO dir: {}", e))
+                    })?;
+                }
             }
             fs::write(path, b"")
                 .await

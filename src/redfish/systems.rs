@@ -71,20 +71,23 @@ pub struct PatchBoot {
     pub boot_source_override_enabled: Option<String>,
 }
 
+#[allow(clippy::collapsible_if)]
 async fn patch_system(
     State(virtual_media): State<crate::virtual_media::manager::VirtualMediaManager>,
+    State(state_manager): State<StateManager>,
     _auth: RequireAuth,
     Json(payload): Json<PatchSystemRequest>,
 ) -> StatusCode {
-    if let Some(boot) = payload.boot
-        && let Some(target) = boot.boot_source_override_target
-    {
-        let res = match target.as_str() {
-            "Pxe" => virtual_media.set_pxe_boot().await,
-            _ => virtual_media.set_boot_from_disk().await,
-        };
-        if res.is_err() {
-            return StatusCode::INTERNAL_SERVER_ERROR;
+    if let Some(boot) = payload.boot {
+        if let Some(target) = boot.boot_source_override_target {
+            let res = match target.as_str() {
+                "Pxe" => virtual_media.set_pxe_boot().await,
+                _ => virtual_media.set_boot_from_disk().await,
+            };
+            if res.is_err() {
+                return StatusCode::INTERNAL_SERVER_ERROR;
+            }
+            state_manager.set_boot_override(target).await;
         }
     }
     StatusCode::OK
@@ -120,7 +123,7 @@ async fn get_system(
         power_state,
         boot: BootSettings {
             boot_source_override_enabled: "Once",
-            boot_source_override_target: "Cd",
+            boot_source_override_target: state_manager.get_boot_override().await,
             boot_source_override_mode: "UEFI",
             allowable_values: vec!["None", "Pxe", "Cd", "Hdd"],
         },

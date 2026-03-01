@@ -5,8 +5,26 @@ setup-m1:
 	cargo install cargo-zigbuild
 	rustup target add riscv64gc-unknown-linux-musl --toolchain nightly
 
+# Local development
+check:
+	cargo check
+
+test:
+	cargo test
+
+lint:
+	cargo fmt --check
+	cargo clippy -- -D warnings
+
+fmt:
+	cargo fmt
+
 build-m1:
 	cargo +nightly zigbuild -Z build-std=std,panic_abort --target riscv64gc-unknown-linux-musl --release
+
+# Docker integration tests
+test-integration:
+	docker compose -f tests/docker-compose.yml up --build --abort-on-container-exit --exit-code-from test-runner
 
 upload-to-kvm: build-m1
 	@if [ -z "$$KVM_IP" ]; then \

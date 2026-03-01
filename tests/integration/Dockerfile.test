@@ -1,0 +1,6 @@
+FROM python:3.11-slim
+WORKDIR /usr/src/app
+COPY integration/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY integration/test_redfish.py .
+CMD ["pytest", "-v", "test_redfish.py"]

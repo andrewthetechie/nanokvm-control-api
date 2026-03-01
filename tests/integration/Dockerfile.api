@@ -1,0 +1,9 @@
+FROM rust:1.85-bookworm as builder
+WORKDIR /usr/src/app
+COPY . .
+RUN cargo build --release
+
+FROM debian:bookworm-slim
+COPY --from=builder /usr/src/app/target/release/nanokvm-control-api /usr/local/bin/
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+CMD ["nanokvm-control-api", "serve", "--config", "/etc/nanokvm/config.toml"]

@@ -45,8 +45,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::sync::Arc::new(power::mock::MockPowerController::new());
 
             // Initialize Virtual Media Manager
-            let nanokvm_client: std::sync::Arc<dyn nanokvm::NanoKvmClient> =
-                std::sync::Arc::new(nanokvm::client::HttpNanoKvmClient::new(&app_config.nanokvm));
+            let nanokvm_client: std::sync::Arc<dyn nanokvm::NanoKvmClient> = if app_config
+                .nanokvm
+                .use_mock
+            {
+                std::sync::Arc::new(nanokvm::mock::MockNanoKvmClient::new())
+            } else {
+                std::sync::Arc::new(nanokvm::client::HttpNanoKvmClient::new(&app_config.nanokvm))
+            };
             let virtual_media = virtual_media::manager::VirtualMediaManager::new(
                 &app_config.virtual_media,
                 nanokvm_client,

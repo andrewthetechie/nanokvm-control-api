@@ -12,12 +12,14 @@ pub enum PowerState {
 #[derive(Clone)]
 pub struct StateManager {
     power_state: Arc<RwLock<PowerState>>,
+    boot_source_override_target: Arc<RwLock<String>>,
 }
 
 impl StateManager {
     pub fn new() -> Self {
         Self {
             power_state: Arc::new(RwLock::new(PowerState::Unknown)),
+            boot_source_override_target: Arc::new(RwLock::new("None".to_string())),
         }
     }
 
@@ -28,6 +30,15 @@ impl StateManager {
     pub async fn set_power_state(&self, state: PowerState) {
         let mut w = self.power_state.write().await;
         *w = state;
+    }
+
+    pub async fn get_boot_override(&self) -> String {
+        self.boot_source_override_target.read().await.clone()
+    }
+
+    pub async fn set_boot_override(&self, target: String) {
+        let mut w = self.boot_source_override_target.write().await;
+        *w = target;
     }
 }
 

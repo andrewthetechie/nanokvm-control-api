@@ -1,0 +1,25 @@
+[server]
+host = "0.0.0.0"
+port = 8000
+
+[auth]
+enabled = false
+
+[power]
+enable_gpio = false
+gpio_chip = "/dev/gpiochip1"
+power_button_line = 3
+hard_power_line = 4
+button_press_delay_ms = 500
+force_off_delay_ms = 5000
+
+[nanokvm]
+use_mock = true
+base_url = "http://localhost:8000"
+
+[virtual_media]
+isos_dir = "/tmp/isos"
+boot_from_disk_iso = "disk.iso"
+pxe_boot_iso = "pxe.iso"
+download_timeout_secs = 600
+cleanup_ttl_secs = 86400

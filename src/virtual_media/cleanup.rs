@@ -38,18 +38,19 @@ pub async fn cleanup_old_isos(config: &VirtualMediaConfig) -> Result<(), AppErro
             continue;
         }
 
-        if let Ok(metadata) = entry.metadata().await
-            && let Ok(modified) = metadata.modified()
-        {
-            let mod_time = modified.duration_since(UNIX_EPOCH).unwrap().as_secs();
-            let age = now.saturating_sub(mod_time);
+        #[allow(clippy::collapsible_if)]
+        if let Ok(metadata) = entry.metadata().await {
+            if let Ok(modified) = metadata.modified() {
+                let mod_time = modified.duration_since(UNIX_EPOCH).unwrap().as_secs();
+                let age = now.saturating_sub(mod_time);
 
-            if age > config.cleanup_ttl_secs {
-                debug!("Deleting old ISO: {:?}", path);
-                if let Err(e) = fs::remove_file(&path).await {
-                    warn!("Failed to delete {}: {}", path.display(), e);
-                } else {
-                    deleted_count += 1;
+                if age > config.cleanup_ttl_secs {
+                    debug!("Deleting old ISO: {:?}", path);
+                    if let Err(e) = fs::remove_file(&path).await {
+                        warn!("Failed to delete {}: {}", path.display(), e);
+                    } else {
+                        deleted_count += 1;
+                    }
                 }
             }
         }

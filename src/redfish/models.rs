@@ -52,7 +52,7 @@ pub struct ComputerSystem {
 #[serde(rename_all = "PascalCase")]
 pub struct BootSettings {
     pub boot_source_override_enabled: &'static str,
-    pub boot_source_override_target: &'static str,
+    pub boot_source_override_target: String,
     pub boot_source_override_mode: &'static str,
     #[serde(rename = "BootSourceOverrideTarget@Redfish.AllowableValues")]
     pub allowable_values: Vec<&'static str>,
