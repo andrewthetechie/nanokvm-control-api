@@ -22,6 +22,10 @@ fmt:
 build-m1:
 	cargo +nightly zigbuild -Z build-std=std,panic_abort --target riscv64gc-unknown-linux-musl --release
 
+# Build disk boot ISO (requires Docker)
+build-disk-iso:
+	./tools/disk-boot-iso/build.sh
+
 # Docker integration tests
 test-integration:
 	docker compose -f tests/docker-compose.yml up --build --abort-on-container-exit --exit-code-from test-runner
