@@ -1,0 +1,12 @@
+[Unit]
+Description=NanoKVM Redfish Control API
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/nanokvm-control-api serve --config /etc/nanokvm/config.toml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
