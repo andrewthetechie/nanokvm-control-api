@@ -1,23 +1,25 @@
 pub mod auth;
-pub mod cli;
-pub mod config;
-pub mod error;
-pub mod nanokvm;
-pub mod power;
-pub mod redfish;
-pub mod state;
-pub mod virtual_media;
+mod cli;
+mod config;
+mod error;
+mod management;
+mod nanokvm;
+mod power;
+mod redfish;
+mod state;
+mod virtual_media;
 
 use clap::Parser;
+use cli::{Cli, Commands};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
-    let cli = cli::Cli::parse();
+    let cli = Cli::parse();
 
     match cli.command {
-        cli::Commands::Serve { config } => {
+        Commands::Serve { config, .. } => {
             tracing::info!("Starting NanoKVM Control API (Redfish rebuild)");
             tracing::debug!("Config path: {}", config);
 
@@ -61,6 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Setup Router
             let app = axum::Router::new()
                 .nest("/redfish", redfish::routes())
+                .nest("/api", management::routes())
                 .with_state(state);
 
             let addr = format!("{}:{}", app_config.server.host, app_config.server.port);

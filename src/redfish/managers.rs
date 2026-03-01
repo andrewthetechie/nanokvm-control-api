@@ -2,7 +2,13 @@ use crate::auth::RequireAuth;
 use crate::redfish::models::*;
 use crate::state::AppState;
 use crate::virtual_media::manager::VirtualMediaManager;
-use axum::{Json, Router, extract::State, routing::get};
+use axum::http::StatusCode;
+use axum::{
+    Json, Router,
+    extract::State,
+    routing::{get, post},
+};
+use serde::Deserialize;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -10,6 +16,48 @@ pub fn routes() -> Router<AppState> {
         .route("/1", get(get_manager))
         .route("/1/VirtualMedia", get(list_virtual_media))
         .route("/1/VirtualMedia/Cd", get(get_virtual_media_cd))
+        .route(
+            "/1/VirtualMedia/Cd/Actions/VirtualMedia.InsertMedia",
+            post(insert_media),
+        )
+        .route(
+            "/1/VirtualMedia/Cd/Actions/VirtualMedia.EjectMedia",
+            post(eject_media),
+        )
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct InsertMediaRequest {
+    pub image: String,
+}
+
+async fn insert_media(
+    State(virtual_media): State<VirtualMediaManager>,
+    _auth: RequireAuth,
+    Json(payload): Json<InsertMediaRequest>,
+) -> StatusCode {
+    // In our simplified logic, InsertMedia might just trigger a generic mount
+    // since we use boot override to actually swap ISOs. But if they provide standard PXE text:
+    if payload.image.to_lowercase().contains("pxe") {
+        let _ = virtual_media.set_pxe_boot().await;
+    } else {
+        let _ = virtual_media.set_boot_from_disk().await;
+    }
+    StatusCode::NO_CONTENT
+}
+
+async fn eject_media(
+    State(virtual_media): State<VirtualMediaManager>,
+    _auth: RequireAuth,
+) -> StatusCode {
+    let client = virtual_media.client();
+    if client.unmount_iso().await.is_ok() {
+        virtual_media.clear_mounted_iso().await;
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::INTERNAL_SERVER_ERROR
+    }
 }
 
 async fn list_managers(_auth: RequireAuth) -> Json<Collection> {
