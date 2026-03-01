@@ -6,6 +6,7 @@ use crate::nanokvm::NanoKvmClient;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
+use tokio::sync::RwLock;
 use tracing::{info, warn};
 
 #[derive(Clone)]
@@ -13,6 +14,7 @@ pub struct VirtualMediaManager {
     disk_iso: PathBuf,
     pxe_iso: PathBuf,
     nanokvm: Arc<dyn NanoKvmClient>,
+    mounted_iso: Arc<RwLock<Option<String>>>,
 }
 
 impl VirtualMediaManager {
@@ -22,24 +24,51 @@ impl VirtualMediaManager {
             disk_iso: base.join(&config.boot_from_disk_iso),
             pxe_iso: base.join(&config.pxe_boot_iso),
             nanokvm,
+            mounted_iso: Arc::new(RwLock::new(None)),
         }
     }
 
     /// Set the boot media to the "boot from disk" ISO
     pub async fn set_boot_from_disk(&self) -> Result<(), AppError> {
         self.ensure_iso_exists(&self.disk_iso).await?;
-        self.nanokvm.mount_iso(&self.disk_iso).await
+        self.nanokvm.mount_iso(&self.disk_iso).await?;
+        let filename = self
+            .disk_iso
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        *self.mounted_iso.write().await = Some(filename);
+        Ok(())
     }
 
     /// Set the boot media to the PXE boot ISO
     pub async fn set_pxe_boot(&self) -> Result<(), AppError> {
         self.ensure_iso_exists(&self.pxe_iso).await?;
-        self.nanokvm.mount_iso(&self.pxe_iso).await
+        self.nanokvm.mount_iso(&self.pxe_iso).await?;
+        let filename = self
+            .pxe_iso
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        *self.mounted_iso.write().await = Some(filename);
+        Ok(())
     }
 
     /// Provides access to the underlying NanoKvmClient to unmount or do custom mounts
     pub fn client(&self) -> Arc<dyn NanoKvmClient> {
         self.nanokvm.clone()
+    }
+
+    /// Returns the name of the currently mounted ISO, if any
+    pub async fn get_mounted_iso(&self) -> Option<String> {
+        self.mounted_iso.read().await.clone()
+    }
+
+    /// Clears the locally tracked mounted ISO state (e.g. after unmount)
+    pub async fn clear_mounted_iso(&self) {
+        *self.mounted_iso.write().await = None;
     }
 
     async fn ensure_iso_exists(&self, path: &Path) -> Result<(), AppError> {

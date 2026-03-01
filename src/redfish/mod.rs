@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod managers;
 pub mod models;
 pub mod systems;
 
@@ -11,6 +12,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/v1/", get(service_root))
         .nest("/v1/Systems", systems::routes())
+        .nest("/v1/Managers", managers::routes())
 }
 
 async fn service_root(_auth: RequireAuth) -> Json<ServiceRoot> {
