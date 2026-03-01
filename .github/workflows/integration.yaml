@@ -1,20 +1,23 @@
-name: Lint
+name: Integration Tests
 
 on:
   push:
     branches: ['**']
 
 jobs:
-  lint:
+  integration:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
         with:
-          components: rustfmt, clippy
+          targets: riscv64gc-unknown-linux-musl
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -25,15 +28,10 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-integration-
             ${{ runner.os }}-cargo-
 
-      - name: Run cargo check
-        run: cargo check
-
-      - name: Run cargo fmt
-        run: cargo fmt --check
-
-      - name: Run cargo clippy
-        run: cargo clippy -- -D warnings
+      - name: Run Integration Tests
+        run: make test-integration
