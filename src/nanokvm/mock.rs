@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Mock implementation
 use super::NanoKvmClient;
 use crate::error::AppError;
@@ -24,9 +25,9 @@ impl MockNanoKvmClient {
 
 #[async_trait::async_trait]
 impl NanoKvmClient for MockNanoKvmClient {
-    async fn mount_iso(&self, path: &PathBuf) -> Result<(), AppError> {
-        info!("MOCK: Mounting ISO: {:?}", path);
-        *self.mounted_iso.lock().await = Some(path.clone());
+    async fn mount_iso(&self, path: &std::path::Path) -> Result<(), AppError> {
+        tracing::info!("MOCK: Mounting ISO: {:?}", path);
+        *self.mounted_iso.lock().await = Some(path.to_path_buf());
         Ok(())
     }
 

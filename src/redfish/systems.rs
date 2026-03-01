@@ -1,5 +1,4 @@
 use crate::auth::RequireAuth;
-use crate::power::PowerController;
 use crate::redfish::models::*;
 use crate::state::{PowerState, StateManager};
 use axum::http::StatusCode;
@@ -68,6 +67,7 @@ pub struct PatchSystemRequest {
 #[serde(rename_all = "PascalCase")]
 pub struct PatchBoot {
     pub boot_source_override_target: Option<String>,
+    #[allow(dead_code)]
     pub boot_source_override_enabled: Option<String>,
 }
 
@@ -76,15 +76,15 @@ async fn patch_system(
     _auth: RequireAuth,
     Json(payload): Json<PatchSystemRequest>,
 ) -> StatusCode {
-    if let Some(boot) = payload.boot {
-        if let Some(target) = boot.boot_source_override_target {
-            let res = match target.as_str() {
-                "Pxe" => virtual_media.set_pxe_boot().await,
-                "Cd" | "Hdd" | _ => virtual_media.set_boot_from_disk().await,
-            };
-            if res.is_err() {
-                return StatusCode::INTERNAL_SERVER_ERROR;
-            }
+    if let Some(boot) = payload.boot
+        && let Some(target) = boot.boot_source_override_target
+    {
+        let res = match target.as_str() {
+            "Pxe" => virtual_media.set_pxe_boot().await,
+            _ => virtual_media.set_boot_from_disk().await,
+        };
+        if res.is_err() {
+            return StatusCode::INTERNAL_SERVER_ERROR;
         }
     }
     StatusCode::OK

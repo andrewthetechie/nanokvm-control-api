@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Mock implementation
 use super::manager::VirtualMediaManager;
 use crate::config::VirtualMediaConfig;

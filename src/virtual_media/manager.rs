@@ -77,12 +77,12 @@ impl VirtualMediaManager {
             // In a real implementation, we might want to automatically create a dummy ISO
             // or fetch the required ISO if missing. For now, we'll try to create an empty file
             // to satisfy basic checks if the directory exists, though a real ISO is needed for boot.
-            if let Some(parent) = path.parent() {
-                if !parent.exists() {
-                    fs::create_dir_all(parent).await.map_err(|e| {
-                        AppError::Internal(format!("Failed to create ISO dir: {}", e))
-                    })?;
-                }
+            if let Some(parent) = path.parent()
+                && !parent.exists()
+            {
+                fs::create_dir_all(parent)
+                    .await
+                    .map_err(|e| AppError::Internal(format!("Failed to create ISO dir: {}", e)))?;
             }
             fs::write(path, b"")
                 .await

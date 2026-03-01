@@ -5,7 +5,6 @@ use crate::config::NanoKvmConfig;
 use crate::error::AppError;
 use reqwest::{Client, StatusCode};
 use serde_json::json;
-use std::path::PathBuf;
 use tracing::{debug, error, info};
 
 pub struct HttpNanoKvmClient {
@@ -67,7 +66,7 @@ impl HttpNanoKvmClient {
 
 #[async_trait::async_trait]
 impl NanoKvmClient for HttpNanoKvmClient {
-    async fn mount_iso(&self, path: &PathBuf) -> Result<(), AppError> {
+    async fn mount_iso(&self, path: &std::path::Path) -> Result<(), AppError> {
         info!("Mounting ISO: {:?}", path);
         // Assuming the nanokvm API expects the path as a string in a JSON payload.
         // We will need to adjust this depending on the exact nanokvm API contract.
