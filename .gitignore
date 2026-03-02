@@ -31,3 +31,6 @@ state.json
 
 # Worktrees
 .worktrees/
+
+images/
+docs/plans/task.md
