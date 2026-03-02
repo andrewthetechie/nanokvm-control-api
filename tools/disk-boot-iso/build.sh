@@ -8,6 +8,9 @@ OUTPUT_FILE="$OUTPUT_DIR/disk-boot.iso"
 IMAGE_NAME="disk-boot-iso-builder"
 CONTAINER_NAME="disk-boot-iso-build-$$"
 
+# Ensure container is cleaned up even if script is interrupted
+trap "docker rm -f $CONTAINER_NAME >/dev/null 2>&1 || true" EXIT
+
 echo "==> Building disk boot ISO..."
 
 # Build the Docker image
