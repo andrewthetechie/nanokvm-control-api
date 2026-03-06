@@ -2,6 +2,7 @@ pub mod actions;
 pub mod managers;
 pub mod models;
 pub mod systems;
+pub mod tasks;
 
 use crate::auth::RequireAuth;
 use crate::state::AppState;

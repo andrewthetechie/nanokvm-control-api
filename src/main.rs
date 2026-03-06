@@ -75,6 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 state_manager: state::StateManager::new(),
                 power_controller,
                 virtual_media,
+                task_manager: redfish::tasks::TaskManager::new(),
             };
 
             // Setup Router

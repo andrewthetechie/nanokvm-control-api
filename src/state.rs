@@ -82,6 +82,7 @@ pub struct AppState {
     pub state_manager: StateManager,
     pub power_controller: Arc<dyn PowerController>,
     pub virtual_media: VirtualMediaManager,
+    pub task_manager: crate::redfish::tasks::TaskManager,
 }
 
 impl FromRef<AppState> for Arc<AppConfig> {
@@ -105,5 +106,11 @@ impl FromRef<AppState> for Arc<dyn PowerController> {
 impl FromRef<AppState> for VirtualMediaManager {
     fn from_ref(state: &AppState) -> Self {
         state.virtual_media.clone()
+    }
+}
+
+impl FromRef<AppState> for crate::redfish::tasks::TaskManager {
+    fn from_ref(state: &AppState) -> Self {
+        state.task_manager.clone()
     }
 }
