@@ -1,8 +1,10 @@
 use crate::auth::RequireAuth;
 use crate::redfish::models::*;
+use crate::redfish::tasks::TaskManager;
 use crate::state::AppState;
 use crate::virtual_media::manager::VirtualMediaManager;
-use axum::http::StatusCode;
+use axum::http::{StatusCode, header};
+use axum::response::IntoResponse;
 use axum::{
     Json, Router,
     extract::State,
@@ -34,16 +36,40 @@ pub struct InsertMediaRequest {
 
 async fn insert_media(
     State(virtual_media): State<VirtualMediaManager>,
+    State(task_manager): State<TaskManager>,
     _auth: RequireAuth,
     Json(payload): Json<InsertMediaRequest>,
-) -> StatusCode {
-    match virtual_media.insert_media(&payload.image).await {
-        Ok(()) => StatusCode::NO_CONTENT,
-        Err(e) => {
-            tracing::error!("InsertMedia failed: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+) -> impl IntoResponse {
+    let task_id = task_manager
+        .create_task(format!("Download and mount {}", payload.image))
+        .await;
+
+    let tm = task_manager.clone();
+    let vm = virtual_media.clone();
+    let image = payload.image.clone();
+
+    tokio::spawn(async move {
+        match vm.insert_media(&image).await {
+            Ok(()) => {
+                tm.complete_task(task_id).await;
+                tracing::info!("Task {} completed: mounted {}", task_id, image);
+            }
+            Err(e) => {
+                tm.fail_task(task_id, format!("InsertMedia failed: {}", e))
+                    .await;
+                tracing::error!("Task {} failed: {}", task_id, e);
+            }
         }
-    }
+    });
+
+    let task = task_manager.get_task(task_id).await.unwrap();
+    let location = format!("/redfish/v1/TaskService/Tasks/{}", task_id);
+
+    (
+        StatusCode::ACCEPTED,
+        [(header::LOCATION, location)],
+        Json(task.to_json()),
+    )
 }
 
 async fn eject_media(
