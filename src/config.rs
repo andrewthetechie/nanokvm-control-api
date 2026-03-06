@@ -25,6 +25,30 @@ pub struct AuthConfig {
     pub password: Option<String>,
 }
 
+fn default_configfs_lun_path() -> String {
+    "/sys/kernel/config/usb_gadget/kvm/functions/mass_storage.0/lun.0".to_string()
+}
+
+fn default_download_dir() -> String {
+    "/var/lib/nanokvm/isos".to_string()
+}
+
+fn default_cleanup_ttl() -> u64 {
+    24 // hours
+}
+
+fn default_download_timeout() -> u64 {
+    600 // seconds
+}
+
+fn default_pxe_boot_iso() -> String {
+    "pxe_boot.iso".to_string()
+}
+
+fn default_disk_boot_iso() -> String {
+    "boot_from_disk.iso".to_string()
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct PowerConfig {
     pub enable_gpio: bool,
@@ -54,11 +78,31 @@ impl NanoKvmConfig {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct VirtualMediaConfig {
+    #[serde(default = "default_download_dir")]
     pub isos_dir: String,
-    pub boot_from_disk_iso: String,
-    pub pxe_boot_iso: String,
+    #[serde(default = "default_cleanup_ttl")]
+    pub cleanup_ttl_hours: u64,
+    #[serde(default = "default_download_timeout")]
     pub download_timeout_secs: u64,
-    pub cleanup_ttl_secs: u64,
+    #[serde(default = "default_pxe_boot_iso")]
+    pub pxe_boot_iso: String,
+    #[serde(default = "default_disk_boot_iso")]
+    pub boot_from_disk_iso: String,
+    #[serde(default = "default_configfs_lun_path")]
+    pub configfs_lun_path: String,
+}
+
+impl Default for VirtualMediaConfig {
+    fn default() -> Self {
+        Self {
+            isos_dir: default_download_dir(),
+            cleanup_ttl_hours: default_cleanup_ttl(),
+            download_timeout_secs: default_download_timeout(),
+            pxe_boot_iso: default_pxe_boot_iso(),
+            boot_from_disk_iso: default_disk_boot_iso(),
+            configfs_lun_path: default_configfs_lun_path(),
+        }
+    }
 }
 
 pub async fn load_config<P: AsRef<Path>>(path: P) -> Result<AppConfig, Box<dyn std::error::Error>> {
@@ -119,7 +163,8 @@ mod tests {
             boot_from_disk_iso = "disk.iso"
             pxe_boot_iso = "pxe.iso"
             download_timeout_secs = 600
-            cleanup_ttl_secs = 86400
+            cleanup_ttl_hours = 24
+            configfs_lun_path = "/tmp/mock_configfs/lun.0"
         "#;
 
         let mut file = NamedTempFile::new().unwrap();
@@ -130,6 +175,11 @@ mod tests {
         assert!(!config.auth.enabled);
         assert_eq!(config.power.power_button_line, 3);
         assert_eq!(config.virtual_media.isos_dir, "/data/isos");
+        assert_eq!(config.virtual_media.cleanup_ttl_hours, 24);
+        assert_eq!(
+            config.virtual_media.configfs_lun_path,
+            "/tmp/mock_configfs/lun.0"
+        );
 
         // Test env override
         unsafe {

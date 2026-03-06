@@ -4,15 +4,16 @@ use super::NanoKvmClient;
 use crate::config::NanoKvmConfig;
 use crate::error::AppError;
 use reqwest::{Client, StatusCode};
-use serde_json::json;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
+#[allow(dead_code)]
 pub struct HttpNanoKvmClient {
     client: Client,
     base_url: String,
     auth_token: String,
 }
 
+#[allow(dead_code)]
 impl HttpNanoKvmClient {
     pub fn new(config: &NanoKvmConfig) -> Self {
         Self {
@@ -65,25 +66,4 @@ impl HttpNanoKvmClient {
 }
 
 #[async_trait::async_trait]
-impl NanoKvmClient for HttpNanoKvmClient {
-    async fn mount_iso(&self, path: &std::path::Path) -> Result<(), AppError> {
-        info!("Mounting ISO: {:?}", path);
-        // Assuming the nanokvm API expects the path as a string in a JSON payload.
-        // We will need to adjust this depending on the exact nanokvm API contract.
-        let payload = json!({
-            "file": path.to_string_lossy().to_string(),
-            "cdrom": true
-        });
-
-        self.send_request("/api/storage/image/mount", payload).await
-    }
-
-    async fn unmount_iso(&self) -> Result<(), AppError> {
-        info!("Unmounting ISO");
-        let payload = json!({
-            "file": "",
-            "cdrom": true
-        });
-        self.send_request("/api/storage/image/mount", payload).await
-    }
-}
+impl NanoKvmClient for HttpNanoKvmClient {}

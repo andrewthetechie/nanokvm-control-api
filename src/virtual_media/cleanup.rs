@@ -3,12 +3,13 @@ use crate::config::VirtualMediaConfig;
 use crate::error::AppError;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 pub async fn cleanup_old_isos(config: &VirtualMediaConfig) -> Result<(), AppError> {
+    let ttl_seconds = config.cleanup_ttl_hours * 3600;
     info!(
         "Starting cleanup of ISOs in {} older than {} seconds",
-        config.isos_dir, config.cleanup_ttl_secs
+        config.isos_dir, ttl_seconds
     );
 
     let mut dir = fs::read_dir(&config.isos_dir).await.map_err(|e| {
@@ -44,8 +45,8 @@ pub async fn cleanup_old_isos(config: &VirtualMediaConfig) -> Result<(), AppErro
                 let mod_time = modified.duration_since(UNIX_EPOCH).unwrap().as_secs();
                 let age = now.saturating_sub(mod_time);
 
-                if age > config.cleanup_ttl_secs {
-                    debug!("Deleting old ISO: {:?}", path);
+                if age > ttl_seconds {
+                    info!("Removing expired ISO: {:?}", path);
                     if let Err(e) = fs::remove_file(&path).await {
                         warn!("Failed to delete {}: {}", path.display(), e);
                     } else {

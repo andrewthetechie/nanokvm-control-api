@@ -76,9 +76,7 @@ async fn eject_media(
     State(virtual_media): State<VirtualMediaManager>,
     _auth: RequireAuth,
 ) -> StatusCode {
-    let client = virtual_media.client();
-    if client.unmount_iso().await.is_ok() {
-        virtual_media.clear_mounted_iso().await;
+    if virtual_media.unmount_iso().await.is_ok() {
         StatusCode::NO_CONTENT
     } else {
         StatusCode::INTERNAL_SERVER_ERROR

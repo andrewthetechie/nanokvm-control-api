@@ -51,17 +51,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::sync::Arc::new(power::mock::MockPowerController::new());
 
             // Initialize Virtual Media Manager
-            let nanokvm_client: std::sync::Arc<dyn nanokvm::NanoKvmClient> = if app_config
-                .nanokvm
-                .use_mock
-            {
-                std::sync::Arc::new(nanokvm::mock::MockNanoKvmClient::new())
-            } else {
-                std::sync::Arc::new(nanokvm::client::HttpNanoKvmClient::new(&app_config.nanokvm))
-            };
+            let media_controller: std::sync::Arc<dyn virtual_media::controller::MediaController> =
+                if app_config.nanokvm.use_mock {
+                    std::sync::Arc::new(virtual_media::mock_controller::MockMediaController::new())
+                } else {
+                    std::sync::Arc::new(virtual_media::controller::LinuxConfigFsController::new(
+                        app_config.virtual_media.configfs_lun_path.clone(),
+                    ))
+                };
             let virtual_media = virtual_media::manager::VirtualMediaManager::new(
                 &app_config.virtual_media,
-                nanokvm_client,
+                media_controller,
             );
 
             // Default to mounting disk boot ISO on startup

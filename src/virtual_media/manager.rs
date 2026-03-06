@@ -1,8 +1,8 @@
 //! Virtual Media Manager
 
+use super::controller::MediaController;
 use crate::config::VirtualMediaConfig;
 use crate::error::AppError;
-use crate::nanokvm::NanoKvmClient;
 use futures_util::StreamExt;
 use reqwest::Client;
 use std::path::{Path, PathBuf};
@@ -18,14 +18,14 @@ pub struct VirtualMediaManager {
     isos_dir: PathBuf,
     disk_iso: PathBuf,
     pxe_iso: PathBuf,
-    nanokvm: Arc<dyn NanoKvmClient>,
+    media_controller: Arc<dyn MediaController>,
     mounted_iso: Arc<RwLock<Option<String>>>,
     http_client: Client,
     download_timeout: Duration,
 }
 
 impl VirtualMediaManager {
-    pub fn new(config: &VirtualMediaConfig, nanokvm: Arc<dyn NanoKvmClient>) -> Self {
+    pub fn new(config: &VirtualMediaConfig, media_controller: Arc<dyn MediaController>) -> Self {
         let base = PathBuf::from(&config.isos_dir);
         let http_client = Client::builder()
             .timeout(Duration::from_secs(config.download_timeout_secs))
@@ -35,7 +35,7 @@ impl VirtualMediaManager {
             isos_dir: base.clone(),
             disk_iso: base.join(&config.boot_from_disk_iso),
             pxe_iso: base.join(&config.pxe_boot_iso),
-            nanokvm,
+            media_controller,
             mounted_iso: Arc::new(RwLock::new(None)),
             http_client,
             download_timeout: Duration::from_secs(config.download_timeout_secs),
@@ -48,9 +48,11 @@ impl VirtualMediaManager {
         // Extract filename from URL, fallback to a sanitized default
         let filename = image_url
             .split('/')
-            .last()
+            .next_back()
             .filter(|s| !s.is_empty())
-            .unwrap_or("inserted.iso")
+            .ok_or_else(|| {
+                AppError::Internal("Invalid image URL format or empty filename".to_string())
+            })?
             .split('?') // strip query params
             .next()
             .unwrap_or("inserted.iso");
@@ -61,7 +63,7 @@ impl VirtualMediaManager {
         self.download_iso(image_url, &dest).await?;
 
         info!("Download complete, mounting {:?}", dest);
-        self.nanokvm.mount_iso(&dest).await?;
+        self.media_controller.mount_iso(&dest).await?;
 
         *self.mounted_iso.write().await = Some(filename.to_string());
         Ok(())
@@ -70,7 +72,7 @@ impl VirtualMediaManager {
     /// Set the boot media to the "boot from disk" ISO
     pub async fn set_boot_from_disk(&self) -> Result<(), AppError> {
         self.ensure_iso_exists(&self.disk_iso).await?;
-        self.nanokvm.mount_iso(&self.disk_iso).await?;
+        self.media_controller.mount_iso(&self.disk_iso).await?;
         let filename = self
             .disk_iso
             .file_name()
@@ -84,7 +86,7 @@ impl VirtualMediaManager {
     /// Set the boot media to the PXE boot ISO
     pub async fn set_pxe_boot(&self) -> Result<(), AppError> {
         self.ensure_iso_exists(&self.pxe_iso).await?;
-        self.nanokvm.mount_iso(&self.pxe_iso).await?;
+        self.media_controller.mount_iso(&self.pxe_iso).await?;
         let filename = self
             .pxe_iso
             .file_name()
@@ -95,9 +97,11 @@ impl VirtualMediaManager {
         Ok(())
     }
 
-    /// Provides access to the underlying NanoKvmClient to unmount or do custom mounts
-    pub fn client(&self) -> Arc<dyn NanoKvmClient> {
-        self.nanokvm.clone()
+    /// Unmount the ISO using the underlying media controller
+    pub async fn unmount_iso(&self) -> Result<(), AppError> {
+        self.media_controller.unmount_iso().await?;
+        self.clear_mounted_iso().await;
+        Ok(())
     }
 
     /// Returns the name of the currently mounted ISO, if any
