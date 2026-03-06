@@ -25,6 +25,7 @@ def test_service_root():
     assert data["@odata.id"] == "/redfish/v1/"
     assert "Systems" in data
     assert "Managers" in data
+    assert "TaskService" in data
 
 def test_systems_collection():
     response = requests.get(f"{API_URL}/redfish/v1/Systems")
@@ -80,17 +81,81 @@ def test_reset_action():
     response = requests.get(f"{API_URL}/redfish/v1/Systems/1")
     assert response.json()["PowerState"] == "On"
 
-def test_virtual_media_insert_and_eject():
-    # Insert media
+def test_task_service():
+    """TaskService endpoint returns valid Redfish resource."""
+    response = requests.get(f"{API_URL}/redfish/v1/TaskService")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["@odata.type"] == "#TaskService.v1_2_1.TaskService"
+    assert data["Id"] == "TaskService"
+    assert data["ServiceEnabled"] is True
+    assert "Tasks" in data
+    assert data["Tasks"]["@odata.id"] == "/redfish/v1/TaskService/Tasks"
+
+def test_tasks_collection():
+    """Tasks collection endpoint is accessible and valid."""
+    response = requests.get(f"{API_URL}/redfish/v1/TaskService/Tasks")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["@odata.type"] == "#TaskCollection.TaskCollection"
+    assert "Members" in data
+    assert "Members@odata.count" in data
+
+def test_insert_media_returns_202_with_task():
+    """InsertMedia returns HTTP 202 with Location header and Task body."""
     response = requests.post(
         f"{API_URL}/redfish/v1/Managers/1/VirtualMedia/Cd/Actions/VirtualMedia.InsertMedia",
-        json={"Image": "http://example.com/test.iso"}
+        json={"Image": "http://example.com/test.iso"},
+        allow_redirects=False,
     )
-    assert response.status_code == 204
+    assert response.status_code == 202, f"Expected 202, got {response.status_code}: {response.text}"
+    assert "location" in response.headers
+    data = response.json()
+    assert data["@odata.type"] == "#Task.v1_7_4.Task"
+    assert data["TaskState"] in ["New", "Running", "Completed", "Exception"]
+
+    # Poll the task location until completed (with timeout)
+    task_url = f"{API_URL}{response.headers['location']}"
+    task_data = None
+    for _ in range(30):
+        task_response = requests.get(task_url)
+        assert task_response.status_code == 200
+        task_data = task_response.json()
+        if task_data["TaskState"] in ["Completed", "Exception"]:
+            break
+        time.sleep(0.5)
+
+    # With mock client, download will fail (example.com), that's expected
+    # The important thing is the task completed its lifecycle
+    assert task_data["TaskState"] in ["Completed", "Exception"]
+
+def test_virtual_media_insert_and_eject():
+    """InsertMedia returns 202 (async), then eject works."""
+    # Insert media — now returns 202
+    response = requests.post(
+        f"{API_URL}/redfish/v1/Managers/1/VirtualMedia/Cd/Actions/VirtualMedia.InsertMedia",
+        json={"Image": "http://example.com/test.iso"},
+        allow_redirects=False,
+    )
+    assert response.status_code == 202
+
+    # Wait for task to finish
+    task_url = f"{API_URL}{response.headers['location']}"
+    for _ in range(30):
+        task_response = requests.get(task_url)
+        task_data = task_response.json()
+        if task_data["TaskState"] in ["Completed", "Exception"]:
+            break
+        time.sleep(0.5)
 
     # Eject media
     response = requests.post(f"{API_URL}/redfish/v1/Managers/1/VirtualMedia/Cd/Actions/VirtualMedia.EjectMedia")
     assert response.status_code == 204
+
+def test_task_not_found():
+    """Requesting a non-existent task returns 404."""
+    response = requests.get(f"{API_URL}/redfish/v1/TaskService/Tasks/99999")
+    assert response.status_code == 404
 
 def test_boot_override():
     # Patch boot target to Pxe
