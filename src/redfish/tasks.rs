@@ -170,3 +170,70 @@ impl Default for TaskManager {
 fn now_iso8601() -> String {
     chrono::Utc::now().to_rfc3339()
 }
+
+// --- Axum Route Handlers ---
+
+use crate::auth::RequireAuth;
+use crate::state::AppState;
+use axum::{
+    Json, Router,
+    extract::{Path, State},
+    http::StatusCode,
+    routing::get,
+};
+
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/", get(get_task_service))
+        .route("/Tasks", get(list_tasks_handler))
+        .route("/Tasks/{id}", get(get_task_handler))
+}
+
+async fn get_task_service(_auth: RequireAuth) -> Json<TaskServiceResource> {
+    Json(TaskServiceResource {
+        odata_type: "#TaskService.v1_2_1.TaskService",
+        odata_id: "/redfish/v1/TaskService",
+        id: "TaskService",
+        name: "Task Service",
+        service_enabled: true,
+        status: TaskServiceStatus {
+            state: "Enabled",
+            health: "OK",
+        },
+        tasks: super::models::ResourceLink {
+            odata_id: "/redfish/v1/TaskService/Tasks".to_string(),
+        },
+    })
+}
+
+async fn list_tasks_handler(
+    State(task_manager): State<TaskManager>,
+    _auth: RequireAuth,
+) -> Json<super::models::Collection> {
+    let tasks = task_manager.list_tasks().await;
+    let members: Vec<super::models::ResourceLink> = tasks
+        .iter()
+        .map(|t| super::models::ResourceLink {
+            odata_id: format!("/redfish/v1/TaskService/Tasks/{}", t.id),
+        })
+        .collect();
+    let count = members.len();
+    Json(super::models::Collection {
+        odata_type: "#TaskCollection.TaskCollection",
+        odata_id: "/redfish/v1/TaskService/Tasks".to_string(),
+        name: "Task Collection".to_string(),
+        members,
+        members_count: count,
+    })
+}
+
+async fn get_task_handler(
+    State(task_manager): State<TaskManager>,
+    Path(id): Path<u64>,
+    _auth: RequireAuth,
+) -> Result<Json<TaskResource>, StatusCode> {
+    match task_manager.get_task(id).await {
+        Some(task) => Ok(Json(task.to_json())),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}

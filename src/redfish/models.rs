@@ -11,6 +11,7 @@ pub struct ServiceRoot {
     pub name: &'static str,
     pub systems: ResourceLink,
     pub managers: ResourceLink,
+    pub task_service: ResourceLink,
     pub update_service: ResourceLink, // Even if stubbed
 }
 

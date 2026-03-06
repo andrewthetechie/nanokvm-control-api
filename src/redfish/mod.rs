@@ -14,6 +14,7 @@ pub fn routes() -> Router<AppState> {
         .route("/v1/", get(service_root))
         .nest("/v1/Systems", systems::routes())
         .nest("/v1/Managers", managers::routes())
+        .nest("/v1/TaskService", tasks::routes())
 }
 
 async fn service_root(_auth: RequireAuth) -> Json<ServiceRoot> {
@@ -27,6 +28,9 @@ async fn service_root(_auth: RequireAuth) -> Json<ServiceRoot> {
         },
         managers: ResourceLink {
             odata_id: "/redfish/v1/Managers".to_string(),
+        },
+        task_service: ResourceLink {
+            odata_id: "/redfish/v1/TaskService".to_string(),
         },
         update_service: ResourceLink {
             odata_id: "/redfish/v1/UpdateService".to_string(),
