@@ -10,7 +10,7 @@ use tracing::{debug, error, info};
 pub struct HttpNanoKvmClient {
     client: Client,
     base_url: String,
-    auth_token: Option<String>,
+    auth_token: String,
 }
 
 impl HttpNanoKvmClient {
@@ -18,7 +18,10 @@ impl HttpNanoKvmClient {
         Self {
             client: Client::new(),
             base_url: config.base_url.clone(),
-            auth_token: config.auth_token.clone(),
+            auth_token: config
+                .auth_token
+                .clone()
+                .expect("auth_token must be set when use_mock is false (call validate() first)"),
         }
     }
 
@@ -33,10 +36,7 @@ impl HttpNanoKvmClient {
     ) -> Result<(), AppError> {
         let url = self.build_url(endpoint);
         let mut req = self.client.post(&url);
-
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token);
-        }
+        req = req.header("Cookie", format!("nano-kvm-token={}", self.auth_token));
 
         let res = req
             .json(&payload)
@@ -71,17 +71,19 @@ impl NanoKvmClient for HttpNanoKvmClient {
         // Assuming the nanokvm API expects the path as a string in a JSON payload.
         // We will need to adjust this depending on the exact nanokvm API contract.
         let payload = json!({
-            "iso_path": path.to_string_lossy().to_string()
+            "file": path.to_string_lossy().to_string(),
+            "cdrom": true
         });
 
-        // This endpoint is speculative based on common patterns.
-        // We may need to update it when we know the exact nanokvm control API format.
-        self.send_request("/api/virtual_media/mount", payload).await
+        self.send_request("/api/storage/image/mount", payload).await
     }
 
     async fn unmount_iso(&self) -> Result<(), AppError> {
         info!("Unmounting ISO");
-        self.send_request("/api/virtual_media/unmount", json!({}))
-            .await
+        let payload = json!({
+            "file": "",
+            "cdrom": true
+        });
+        self.send_request("/api/storage/image/mount", payload).await
     }
 }

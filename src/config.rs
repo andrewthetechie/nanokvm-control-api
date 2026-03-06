@@ -43,6 +43,15 @@ pub struct NanoKvmConfig {
     pub auth_token: Option<String>,
 }
 
+impl NanoKvmConfig {
+    pub fn validate(&self) -> Result<(), String> {
+        if !self.use_mock && self.auth_token.is_none() {
+            return Err("nanokvm.auth_token is required when use_mock is false".to_string());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct VirtualMediaConfig {
     pub isos_dir: String,
@@ -131,5 +140,35 @@ mod tests {
         unsafe {
             env::remove_var("NANOKVM_SERVER_PORT");
         }
+    }
+
+    #[test]
+    fn test_nanokvm_config_validate_mock_no_token() {
+        let config = NanoKvmConfig {
+            use_mock: true,
+            base_url: "http://localhost:8080".to_string(),
+            auth_token: None,
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_nanokvm_config_validate_real_no_token() {
+        let config = NanoKvmConfig {
+            use_mock: false,
+            base_url: "http://10.10.0.208".to_string(),
+            auth_token: None,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_nanokvm_config_validate_real_with_token() {
+        let config = NanoKvmConfig {
+            use_mock: false,
+            base_url: "http://10.10.0.208".to_string(),
+            auth_token: Some("my-jwt-token".to_string()),
+        };
+        assert!(config.validate().is_ok());
     }
 }

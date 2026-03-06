@@ -37,14 +37,13 @@ async fn insert_media(
     _auth: RequireAuth,
     Json(payload): Json<InsertMediaRequest>,
 ) -> StatusCode {
-    // In our simplified logic, InsertMedia might just trigger a generic mount
-    // since we use boot override to actually swap ISOs. But if they provide standard PXE text:
-    if payload.image.to_lowercase().contains("pxe") {
-        let _ = virtual_media.set_pxe_boot().await;
-    } else {
-        let _ = virtual_media.set_boot_from_disk().await;
+    match virtual_media.insert_media(&payload.image).await {
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(e) => {
+            tracing::error!("InsertMedia failed: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
     }
-    StatusCode::NO_CONTENT
 }
 
 async fn eject_media(

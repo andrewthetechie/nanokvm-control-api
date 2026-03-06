@@ -31,6 +31,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
+            // Validate NanoKVM config (auth_token required when not using mock)
+            if let Err(e) = app_config.nanokvm.validate() {
+                tracing::error!("Config validation failed: {}", e);
+                std::process::exit(1);
+            }
+
             // Initialize Power Controller
             #[cfg(target_os = "linux")]
             let power_controller: std::sync::Arc<dyn power::PowerController> =
