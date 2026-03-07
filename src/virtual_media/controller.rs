@@ -27,13 +27,7 @@ impl LinuxConfigFsController {
 #[async_trait::async_trait]
 impl MediaController for LinuxConfigFsController {
     async fn mount_iso(&self, path: &Path) -> Result<(), AppError> {
-        let forced_eject_path = format!("{}/forced_eject", self.lun_path);
         let file_path = format!("{}/file", self.lun_path);
-
-        info!("Force ejecting existing media via configfs");
-        fs::write(&forced_eject_path, "1")
-            .await
-            .map_err(|e| AppError::Internal(format!("Failed to write forced_eject: {}", e)))?;
 
         info!("Mounting ISO {:?} via configfs", path);
         fs::write(&file_path, path.to_string_lossy().as_ref())
@@ -46,15 +40,9 @@ impl MediaController for LinuxConfigFsController {
     }
 
     async fn unmount_iso(&self) -> Result<(), AppError> {
-        let forced_eject_path = format!("{}/forced_eject", self.lun_path);
         let file_path = format!("{}/file", self.lun_path);
 
-        info!("Force ejecting existing media via configfs to unmount");
-        fs::write(&forced_eject_path, "1")
-            .await
-            .map_err(|e| AppError::Internal(format!("Failed to write forced_eject: {}", e)))?;
-
-        info!("Clearing configfs lun file");
+        info!("Clearing configfs lun file to unmount media");
         fs::write(&file_path, "")
             .await
             .map_err(|e| AppError::Internal(format!("Failed to clear configfs lun file: {}", e)))?;

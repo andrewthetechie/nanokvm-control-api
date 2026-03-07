@@ -26,7 +26,7 @@ pub struct AuthConfig {
 }
 
 fn default_configfs_lun_path() -> String {
-    "/sys/kernel/config/usb_gadget/kvm/functions/mass_storage.0/lun.0".to_string()
+    "/sys/kernel/config/usb_gadget/g0/functions/mass_storage.disk0/lun.0".to_string()
 }
 
 fn default_download_dir() -> String {
